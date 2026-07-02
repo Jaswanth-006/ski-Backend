@@ -40,6 +40,35 @@ jobs:
       - name: Test (pytest)
         run: pytest
 
+  migrations:
+    name: alembic upgrade head
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ski
+          POSTGRES_PASSWORD: ski
+          POSTGRES_DB: ski
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ski -d ski"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ski:ski@localhost:5432/ski
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: Run migrations on a clean DB
+        run: alembic upgrade head
+      - name: Verify migrations are reversible
+        run: alembic downgrade base
+
   build:
     name: docker build
     runs-on: ubuntu-latest

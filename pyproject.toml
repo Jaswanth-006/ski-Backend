@@ -9,6 +9,10 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.13",
+    "asyncpg>=0.29",
+    "argon2-cffi>=23.1",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +34,7 @@ include = ["app*"]
 line-length = 100
 target-version = "py312"
 src = ["app", "tests"]
+extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "W"]

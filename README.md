@@ -26,6 +26,17 @@ uvicorn app.main:app --reload
 # http://127.0.0.1:8000/docs    → OpenAPI / Swagger UI
 ```
 
+## Database & migrations
+```bash
+docker compose up -d postgres      # local Postgres 16 (see docker-compose.yml)
+alembic upgrade head               # build the schema + seed cylinder types & super_admin
+alembic downgrade base             # tear it all down (migrations are reversible)
+```
+Schema is defined as ORM models in `app/db/models.py` (14 v1 tables; `jobs` lands in Phase 0-F)
+and built by the Alembic migrations in `migrations/versions/`. The DB URL is read from
+`DATABASE_URL` (never from `alembic.ini`). The seed creates the Indane cylinder varieties and one
+`super_admin` (`SEED_ADMIN_PHONE` / `SEED_ADMIN_PASSWORD` — **rotate the password after first login**).
+
 ## Quality gates (same as CI)
 ```bash
 ruff check .          # lint
