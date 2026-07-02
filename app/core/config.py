@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    # Observability (Phase 0-D). Sentry is disabled unless a DSN is provided.
+    log_level: str = "INFO"
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.0
+
     @property
     def replica_url(self) -> str:
         return self.database_replica_url or self.database_url
