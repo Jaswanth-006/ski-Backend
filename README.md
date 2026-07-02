@@ -37,6 +37,16 @@ and built by the Alembic migrations in `migrations/versions/`. The DB URL is rea
 `DATABASE_URL` (never from `alembic.ini`). The seed creates the Indane cylinder varieties and one
 `super_admin` (`SEED_ADMIN_PHONE` / `SEED_ADMIN_PASSWORD` — **rotate the password after first login**).
 
+## API contract
+`openapi.yaml` is the canonical contract (00-MAIN-PRD §7), exported from FastAPI and
+committed. Regenerate it whenever the API changes:
+```bash
+python scripts/export_openapi.py
+```
+A contract snapshot test (`tests/test_openapi_contract.py`) fails if the committed spec
+drifts from the app, so it stays accurate. The web app generates its typed client from this
+file (see `ski-frontend`, orval).
+
 ## Quality gates (same as CI)
 ```bash
 ruff check .          # lint
