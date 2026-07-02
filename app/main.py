@@ -1,24 +1,34 @@
 """FastAPI application factory.
 
-Phase 0-A skeleton: app boots, exposes liveness/readiness probes, and auto-generates
-the OpenAPI contract. Business routers (auth, stock, sales, ...) arrive in later phases.
+Wires config, structured logging, Sentry, request-context middleware, health probes,
+and the /v1 routers. Business routers arrive in later phases.
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
+from sqlalchemy import text
 
+from app.api.middleware import RequestContextMiddleware
 from app.api.routes import auth as auth_routes
 from app.api.routes import users as users_routes
 from app.core.config import settings
+from app.core.logging import configure_logging
+from app.core.observability import init_sentry
+from app.db.session import engine
 
 
 def create_app() -> FastAPI:
+    configure_logging(settings.log_level)
+    init_sentry(settings)
+
     app = FastAPI(
         title="Ski — API",
         version=settings.version,
         description="System of record for an LPG distributorship. See 01-BACKEND-PRD.",
     )
+
+    app.add_middleware(RequestContextMiddleware)
 
     app.include_router(auth_routes.router, prefix="/v1")
     app.include_router(users_routes.router, prefix="/v1")
@@ -30,7 +40,14 @@ def create_app() -> FastAPI:
 
     @app.get("/readyz", tags=["health"])
     async def readyz() -> dict[str, str]:
-        """Readiness: ready to serve traffic. Dependency checks land in Phase 0-F."""
+        """Readiness: the process can reach its database. 503 if not."""
+        try:
+            async with engine.connect() as conn:
+                await conn.scalar(text("SELECT 1"))
+        except Exception as exc:  # noqa: BLE001 — surface any dependency failure as not-ready
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, detail="database unavailable"
+            ) from exc
         return {"status": "ready"}
 
     @app.get("/", tags=["meta"])
