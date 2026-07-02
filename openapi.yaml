@@ -1,0 +1,308 @@
+openapi: 3.1.0
+info:
+  title: Ski — API
+  description: System of record for an LPG distributorship. See 01-BACKEND-PRD.
+  version: 0.1.0
+paths:
+  /v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Login
+      operationId: login_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Refresh
+      operationId: refresh_v1_auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Logout
+      operationId: logout_v1_auth_logout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/me:
+    get:
+      tags:
+      - auth
+      summary: Me
+      operationId: me_v1_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+      security:
+      - HTTPBearer: []
+  /v1/users:
+    get:
+      tags:
+      - users
+      summary: List Users
+      operationId: list_users_v1_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/UserOut'
+                type: array
+                title: Response List Users V1 Users Get
+      security:
+      - HTTPBearer: []
+  /v1/users/{user_id}:
+    get:
+      tags:
+      - users
+      summary: Get User
+      operationId: get_user_v1_users__user_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /livez:
+    get:
+      tags:
+      - health
+      summary: Livez
+      description: 'Liveness: the process is up.'
+      operationId: livez_livez_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Livez Livez Get
+  /readyz:
+    get:
+      tags:
+      - health
+      summary: Readyz
+      description: 'Readiness: the process can reach its database. 503 if not.'
+      operationId: readyz_readyz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Readyz Readyz Get
+  /:
+    get:
+      tags:
+      - meta
+      summary: Root
+      operationId: root__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Root  Get
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LoginRequest:
+      properties:
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 3
+          title: Phone
+        password:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - phone
+      - password
+      title: LoginRequest
+    LogoutRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: LogoutRequest
+    RefreshRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: RefreshRequest
+    TokenPair:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+      type: object
+      required:
+      - access_token
+      - refresh_token
+      title: TokenPair
+    UserOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        role:
+          type: string
+          title: Role
+        phone:
+          type: string
+          title: Phone
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - name
+      - role
+      - phone
+      - is_active
+      title: UserOut
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
