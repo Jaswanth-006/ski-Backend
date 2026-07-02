@@ -1,0 +1,21 @@
+# Local dev dependencies. Phase 0-B provisions Postgres; Redis + worker are added in
+# Phase 0-F. App services (api, worker) run from the repo image once wired.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ski
+      POSTGRES_PASSWORD: ski
+      POSTGRES_DB: ski
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ski -d ski"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

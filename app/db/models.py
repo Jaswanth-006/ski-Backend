@@ -1,0 +1,311 @@
+"""ORM models for all v1 tables (canonical DDL: 01-BACKEND-PRD §4).
+
+Money is always ``Numeric`` (never float); times are ``TIMESTAMPTZ``; externally
+referenced entities use UUID PKs, append-only ledgers use BIGSERIAL. The Alembic
+initial migration is the source of truth for the physical schema — these models
+mirror it for the app/ORM layer and for `Base.metadata` in tests.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+# ============ Identity ============
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('super_admin','office_admin','delivery')", name="ck_users_role"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Catalog & pricing (temporal) ============
+class CylinderType(Base):
+    __tablename__ = "cylinder_types"
+    __table_args__ = (Index("idx_cyl_active", "is_active"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class Price(Base):
+    __tablename__ = "prices"
+    __table_args__ = (
+        CheckConstraint("unit_price >= 0", name="ck_prices_unit_price_nonneg"),
+        UniqueConstraint("cylinder_type_id", "effective_date", name="uq_prices_type_date"),
+        Index("idx_prices_lookup", "cylinder_type_id", text("effective_date DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
+    )
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    effective_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Inventory (optimistic locking) ============
+class Inventory(Base):
+    __tablename__ = "inventory"
+    __table_args__ = (CheckConstraint("quantity >= 0", name="ck_inventory_qty_nonneg"),)
+
+    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), primary_key=True
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+# ============ Append-only stock ledger ============
+class StockLedger(Base):
+    __tablename__ = "stock_ledger"
+    __table_args__ = (
+        CheckConstraint(
+            "reason IN ('intake','sale','reversal','adjust')", name="ck_stock_ledger_reason"
+        ),
+        Index("idx_stock_ledger_type", "cylinder_type_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
+    )
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Sales (idempotent) ============
+class Sale(Base):
+    __tablename__ = "sales"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending','approved','rejected')", name="ck_sales_status"),
+        CheckConstraint("upi_total >= 0", name="ck_sales_upi_nonneg"),
+        CheckConstraint("submitted_via IN ('mobile','web')", name="ck_sales_submitted_via"),
+        Index("idx_sales_date_delivery", "business_date", "delivery_id"),
+        Index("idx_sales_status", "status", postgresql_where=text("status = 'pending'")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    idempotency_key: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, unique=True
+    )
+    delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
+    upi_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, server_default=text("0")
+    )
+    submitted_via: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'mobile'")
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    approved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+
+
+class SaleLine(Base):
+    __tablename__ = "sale_lines"
+    __table_args__ = (CheckConstraint("qty >= 0", name="ck_sale_lines_qty_nonneg"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sale_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id"), nullable=False
+    )
+    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
+    )
+    qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+
+
+class CashDenomination(Base):
+    __tablename__ = "cash_denominations"
+    __table_args__ = (
+        CheckConstraint("note_value > 0", name="ck_cash_denom_value_pos"),
+        CheckConstraint("note_count >= 0", name="ck_cash_denom_count_nonneg"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sale_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id"), nullable=False
+    )
+    note_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    note_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+# ============ Append-only cash ledger ============
+class CashLedger(Base):
+    __tablename__ = "cash_ledger"
+    __table_args__ = (
+        CheckConstraint("kind IN ('cash','upi','expense','reversal')", name="ck_cash_ledger_kind"),
+        Index("idx_cash_ledger_date", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id"), nullable=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Expense items (admin-managed master data) ============
+class ExpenseItem(Base):
+    __tablename__ = "expense_items"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_expense_items_name"),
+        Index("idx_expitem_active", "is_active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Expenses ============
+class Expense(Base):
+    __tablename__ = "expenses"
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_expenses_amount_nonneg"),
+        CheckConstraint("method IN ('cash','digital')", name="ck_expenses_method"),
+        Index("idx_expenses_date", "business_date"),
+        Index("idx_expenses_item", "item_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("expense_items.id"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    method: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Day-sheet lock ============
+class DaySheetStatus(Base):
+    __tablename__ = "day_sheet_status"
+
+    business_date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    is_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    closed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ============ Immutable audit log ============
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    __table_args__ = (Index("idx_audit_entity", "entity", "entity_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    entity: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    old_value: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    new_value: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
