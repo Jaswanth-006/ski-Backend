@@ -20,6 +20,7 @@ EXPECTED_TABLES = {
     "expenses",
     "day_sheet_status",
     "audit_log",
+    "jobs",  # added in Phase 0-F
 }
 
 
@@ -27,9 +28,9 @@ def test_all_v1_tables_registered() -> None:
     assert set(Base.metadata.tables) == EXPECTED_TABLES
 
 
-def test_jobs_table_deferred_to_phase_f() -> None:
-    # `jobs` is intentionally not part of Phase 0-B (added in Phase 0-F).
-    assert "jobs" not in Base.metadata.tables
+def test_jobs_table_present() -> None:
+    # Added with the async infrastructure in Phase 0-F.
+    assert "jobs" in Base.metadata.tables
 
 
 def test_sales_has_unique_idempotency_key() -> None:

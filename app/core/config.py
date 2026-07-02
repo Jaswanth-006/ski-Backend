@@ -39,9 +39,30 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.0
 
+    # Redis / Celery (Phase 0-F). Broker + result backend default to REDIS_URL.
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str | None = None
+    celery_result_backend: str | None = None
+
+    # Object storage (Phase 0-F) — S3-compatible (MinIO locally). Disabled unless configured.
+    object_storage_endpoint: str | None = None
+    object_storage_bucket: str = "ski"
+    object_storage_access_key: str | None = None
+    object_storage_secret_key: str | None = None
+    object_storage_region: str = "us-east-1"
+    presign_ttl_seconds: int = 3600
+
     @property
     def replica_url(self) -> str:
         return self.database_replica_url or self.database_url
+
+    @property
+    def broker_url(self) -> str:
+        return self.celery_broker_url or self.redis_url
+
+    @property
+    def result_backend(self) -> str:
+        return self.celery_result_backend or self.redis_url
 
 
 settings = Settings()
