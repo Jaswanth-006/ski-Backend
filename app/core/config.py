@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     seed_admin_phone: str = "9000000001"
     seed_admin_password: str = "ChangeMe@123"
 
+    # Auth (Phase 0-C). JWT_SECRET MUST be overridden via env in real environments.
+    jwt_secret: str = "dev-insecure-secret-change-me-min-32-bytes"
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
+
     @property
     def replica_url(self) -> str:
         return self.database_replica_url or self.database_url
