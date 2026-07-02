@@ -16,13 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TokenError, decode_access_token
 from app.db.models import User
-from app.db.session import SessionLocal
+from app.db.session import ReplicaSessionLocal, SessionLocal
 
 _bearer = HTTPBearer(auto_error=True)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
+        yield session
+
+
+async def get_replica_db() -> AsyncGenerator[AsyncSession, None]:
+    """Read-only session on the analytics replica (falls back to primary in dev)."""
+    async with ReplicaSessionLocal() as session:
         yield session
 
 

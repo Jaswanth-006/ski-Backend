@@ -137,6 +137,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/jobs/ping:
+    post:
+      tags:
+      - jobs
+      summary: Enqueue Ping
+      operationId: enqueue_ping_v1_jobs_ping_post
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobEnqueued'
+      security:
+      - HTTPBearer: []
+  /v1/jobs/{job_id}:
+    get:
+      tags:
+      - jobs
+      summary: Get Job
+      operationId: get_job_v1_jobs__job_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /livez:
     get:
       tags:
@@ -198,6 +242,58 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    JobEnqueued:
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          title: Job Id
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - job_id
+      - status
+      title: JobEnqueued
+    JobOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        kind:
+          type: string
+          title: Kind
+        status:
+          type: string
+          title: Status
+        result_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result Url
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - kind
+      - status
+      - created_at
+      - updated_at
+      title: JobOut
     LoginRequest:
       properties:
         phone:
