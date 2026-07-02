@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from app.api.routes import auth as auth_routes
+from app.api.routes import users as users_routes
 from app.core.config import settings
 
 
@@ -17,6 +19,9 @@ def create_app() -> FastAPI:
         version=settings.version,
         description="System of record for an LPG distributorship. See 01-BACKEND-PRD.",
     )
+
+    app.include_router(auth_routes.router, prefix="/v1")
+    app.include_router(users_routes.router, prefix="/v1")
 
     @app.get("/livez", tags=["health"])
     async def livez() -> dict[str, str]:
