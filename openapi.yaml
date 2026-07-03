@@ -220,6 +220,99 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/cylinder-types:
+    get:
+      tags:
+      - catalog
+      summary: List Cylinder Types
+      operationId: list_cylinder_types_v1_cylinder_types_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: string
+          default: 'true'
+          title: Active
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CylinderTypeOut'
+                title: Response List Cylinder Types V1 Cylinder Types Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - catalog
+      summary: Create Cylinder Type
+      operationId: create_cylinder_type_v1_cylinder_types_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CylinderTypeCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CylinderTypeOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/cylinder-types/{type_id}:
+    patch:
+      tags:
+      - catalog
+      summary: Update Cylinder Type
+      operationId: update_cylinder_type_v1_cylinder_types__type_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: type_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Type Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CylinderTypeUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CylinderTypeOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -316,6 +409,61 @@ paths:
                 title: Response Root  Get
 components:
   schemas:
+    CylinderTypeCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Code
+        label:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Label
+      type: object
+      required:
+      - code
+      - label
+      title: CylinderTypeCreate
+    CylinderTypeOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - code
+      - label
+      - is_active
+      title: CylinderTypeOut
+    CylinderTypeUpdate:
+      properties:
+        label:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Label
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: CylinderTypeUpdate
     HTTPValidationError:
       properties:
         detail:

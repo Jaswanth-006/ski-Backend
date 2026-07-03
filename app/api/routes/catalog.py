@@ -1,0 +1,55 @@
+"""Master-data catalog routes — cylinder varieties (Phase 1-C).
+
+GET is available to any authenticated user (it powers the sales dropdown); create/edit/
+(de)activate are owner-only. Soft-delete keeps history intact (01-BACKEND-PRD §8.2).
+"""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user, get_db, require_roles
+from app.db.models import CylinderType, User
+from app.schemas.catalog import CylinderTypeCreate, CylinderTypeOut, CylinderTypeUpdate
+from app.services import catalog as catalog_service
+
+router = APIRouter(tags=["catalog"])
+
+
+@router.get("/cylinder-types", response_model=list[CylinderTypeOut])
+async def list_cylinder_types(
+    active: str = "true",
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CylinderType]:
+    return await catalog_service.list_cylinder_types(db, active=active)
+
+
+@router.post("/cylinder-types", response_model=CylinderTypeOut, status_code=status.HTTP_201_CREATED)
+async def create_cylinder_type(
+    body: CylinderTypeCreate,
+    _: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> CylinderType:
+    try:
+        return await catalog_service.create_cylinder_type(db, body)
+    except catalog_service.CodeAlreadyExists as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="a cylinder type with this code already exists"
+        ) from exc
+
+
+@router.patch("/cylinder-types/{type_id}", response_model=CylinderTypeOut)
+async def update_cylinder_type(
+    type_id: uuid.UUID,
+    body: CylinderTypeUpdate,
+    _: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> CylinderType:
+    row = await catalog_service.update_cylinder_type(db, type_id, body)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="cylinder type not found")
+    return row
