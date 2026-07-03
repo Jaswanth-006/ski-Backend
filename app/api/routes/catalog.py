@@ -12,8 +12,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_roles
-from app.db.models import CylinderType, User
-from app.schemas.catalog import CylinderTypeCreate, CylinderTypeOut, CylinderTypeUpdate
+from app.db.models import CylinderType, ExpenseItem, User
+from app.schemas.catalog import (
+    CylinderTypeCreate,
+    CylinderTypeOut,
+    CylinderTypeUpdate,
+    ExpenseItemCreate,
+    ExpenseItemOut,
+    ExpenseItemUpdate,
+)
 from app.services import catalog as catalog_service
 
 router = APIRouter(tags=["catalog"])
@@ -52,4 +59,41 @@ async def update_cylinder_type(
     row = await catalog_service.update_cylinder_type(db, type_id, body)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="cylinder type not found")
+    return row
+
+
+# ---- Expense items (Phase 1-D) ----
+@router.get("/expense-items", response_model=list[ExpenseItemOut])
+async def list_expense_items(
+    active: str = "true",
+    _: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> list[ExpenseItem]:
+    return await catalog_service.list_expense_items(db, active=active)
+
+
+@router.post("/expense-items", response_model=ExpenseItemOut, status_code=status.HTTP_201_CREATED)
+async def create_expense_item(
+    body: ExpenseItemCreate,
+    current_user: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> ExpenseItem:
+    try:
+        return await catalog_service.create_expense_item(db, body, current_user.id)
+    except catalog_service.NameAlreadyExists as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="an expense item with this name already exists"
+        ) from exc
+
+
+@router.patch("/expense-items/{item_id}", response_model=ExpenseItemOut)
+async def update_expense_item(
+    item_id: uuid.UUID,
+    body: ExpenseItemUpdate,
+    _: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> ExpenseItem:
+    row = await catalog_service.update_expense_item(db, item_id, body)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="expense item not found")
     return row

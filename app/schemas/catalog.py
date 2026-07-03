@@ -22,3 +22,21 @@ class CylinderTypeOut(BaseModel):
     code: str
     label: str
     is_active: bool
+
+
+class ExpenseItemCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: str | None = Field(default=None, max_length=120)
+
+
+class ExpenseItemUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    category: str | None = Field(default=None, max_length=120)
+    is_active: bool | None = None
+
+
+class ExpenseItemOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    category: str | None
+    is_active: bool
