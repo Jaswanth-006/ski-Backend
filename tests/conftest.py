@@ -15,7 +15,7 @@ import pytest_asyncio
 from app.api.deps import get_db
 from app.core.config import settings
 from app.core.security import hash_password
-from app.db.models import RefreshToken, User
+from app.db.models import Job, RefreshToken, User
 from app.main import app
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
@@ -48,6 +48,7 @@ async def client() -> AsyncIterator[tuple[AsyncClient, SeededUsers]]:
             # Clean any leftovers from a previous run, then seed fresh test users.
             existing = (await session.scalars(select(User.id).where(User.phone.in_(phones)))).all()
             if existing:
+                await session.execute(delete(Job).where(Job.requested_by.in_(existing)))
                 await session.execute(
                     delete(RefreshToken).where(RefreshToken.user_id.in_(existing))
                 )
@@ -89,6 +90,7 @@ async def client() -> AsyncIterator[tuple[AsyncClient, SeededUsers]]:
     app.dependency_overrides.pop(get_db, None)
     async with session_factory() as session:
         ids = [office_id, delivery_id]
+        await session.execute(delete(Job).where(Job.requested_by.in_(ids)))
         await session.execute(delete(RefreshToken).where(RefreshToken.user_id.in_(ids)))
         await session.execute(delete(User).where(User.id.in_(ids)))
         await session.commit()

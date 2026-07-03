@@ -1,0 +1,15 @@
+# ski-backend — Celery worker process (same codebase as the API image).
+FROM python:3.12-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY app ./app
+RUN pip install --upgrade pip && pip install .
+
+# Consume all three queues; core has tasks today, ml/ai are provisioned but empty.
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "core,ml,ai", "--concurrency=2"]

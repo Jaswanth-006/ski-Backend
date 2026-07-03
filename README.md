@@ -37,6 +37,21 @@ and built by the Alembic migrations in `migrations/versions/`. The DB URL is rea
 `DATABASE_URL` (never from `alembic.ini`). The seed creates the Indane cylinder varieties and one
 `super_admin` (`SEED_ADMIN_PHONE` / `SEED_ADMIN_PASSWORD` — **rotate the password after first login**).
 
+## Async infrastructure (workers)
+```bash
+docker compose up -d postgres redis minio     # dependencies
+# API:
+uvicorn app.main:app --reload
+# Worker (all queues; --pool=solo on Windows):
+celery -A app.workers.celery_app worker -Q core,ml,ai --pool=solo
+```
+Background work runs on **Celery** over **Redis** with three bulkheaded queues — `core`
+(live: exports/notifications), `ml` and `ai` (provisioned, empty until Future Work). Every
+job gets a row in `jobs`; poll it via `GET /v1/jobs/{id}`. `POST /v1/jobs/ping` is a demo
+round-trip. Analytics reads use the **read replica** session (`get_replica_db`, falls back to
+primary locally). Generated files go to **S3-compatible object storage** (MinIO locally) via
+pre-signed URLs (`app/core/storage.py`).
+
 ## API contract
 `openapi.yaml` is the canonical contract (00-MAIN-PRD §7), exported from FastAPI and
 committed. Regenerate it whenever the API changes:
