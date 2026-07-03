@@ -14,10 +14,8 @@ def test_livez() -> None:
     assert res.json() == {"status": "ok"}
 
 
-def test_readyz() -> None:
-    res = client.get("/readyz")
-    assert res.status_code == 200
-    assert res.json() == {"status": "ready"}
+# /readyz checks the database, so it is verified in the DB-backed integration tests
+# (tests/test_observability.py) and live, not in this DB-free smoke suite.
 
 
 def test_root() -> None:
