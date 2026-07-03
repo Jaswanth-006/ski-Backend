@@ -96,19 +96,102 @@ paths:
       - users
       summary: List Users
       operationId: list_users_v1_users_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Active
+      - name: role
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/UserOut'
-                type: array
                 title: Response List Users V1 Users Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - users
+      summary: Create User
+      operationId: create_user_v1_users_post
       security:
       - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/users/{user_id}:
+    patch:
+      tags:
+      - users
+      summary: Update User
+      operationId: update_user_v1_users__user_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     get:
       tags:
       - users
@@ -346,6 +429,33 @@ components:
       - access_token
       - refresh_token
       title: TokenPair
+    UserCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 3
+          title: Phone
+        role:
+          type: string
+          title: Role
+        password:
+          type: string
+          maxLength: 200
+          minLength: 8
+          title: Password
+      type: object
+      required:
+      - name
+      - phone
+      - role
+      - password
+      title: UserCreate
     UserOut:
       properties:
         id:
@@ -372,6 +482,34 @@ components:
       - phone
       - is_active
       title: UserOut
+    UserUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        password:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 8
+          - type: 'null'
+          title: Password
+      type: object
+      title: UserUpdate
     ValidationError:
       properties:
         loc:
