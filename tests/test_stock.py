@@ -112,3 +112,56 @@ async def test_office_can_record_intake(client: tuple[AsyncClient, SeededUsers])
         assert _qty(res.json(), type_id) == 3
     finally:
         await _cleanup()
+
+
+def _version(rows: list[dict[str, object]], type_id: str) -> int:
+    for row in rows:
+        if row["cylinder_type_id"] == type_id:
+            v = row["version"]
+            assert isinstance(v, int)
+            return v
+    raise KeyError(type_id)
+
+
+async def test_inventory_optimistic_locking(client: tuple[AsyncClient, SeededUsers]) -> None:
+    http, _ = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        type_id = await _make_type(http, admin)
+        await http.post(
+            "/v1/stock/intake",
+            headers=admin,
+            json={"lines": [{"cylinder_type_id": type_id, "qty": 10}]},
+        )
+        version = _version((await http.get("/v1/inventory", headers=admin)).json(), type_id)
+
+        # Correct the count with the right version → succeeds, version bumps.
+        ok = await http.patch(
+            f"/v1/inventory/{type_id}",
+            headers={**admin, "If-Match": str(version)},
+            json={"quantity": 8},
+        )
+        assert ok.status_code == 200, ok.text
+        assert ok.json()["quantity"] == 8
+        new_version = ok.json()["version"]
+        assert new_version == version + 1
+
+        # Re-using the old (now stale) version → 409 refresh-and-retry.
+        stale = await http.patch(
+            f"/v1/inventory/{type_id}",
+            headers={**admin, "If-Match": str(version)},
+            json={"quantity": 99},
+        )
+        assert stale.status_code == 409
+
+        # The fresh version works.
+        ok2 = await http.patch(
+            f"/v1/inventory/{type_id}",
+            headers={**admin, "If-Match": str(new_version)},
+            json={"quantity": 12},
+        )
+        assert ok2.status_code == 200
+        assert ok2.json()["quantity"] == 12
+    finally:
+        await _cleanup()
