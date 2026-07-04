@@ -533,6 +533,51 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /v1/inventory/{cylinder_type_id}:
+    patch:
+      tags:
+      - stock
+      summary: Adjust Inventory
+      description: 'Correct a count. Send If-Match: <version>; a stale version is
+        rejected with 409.'
+      operationId: adjust_inventory_v1_inventory__cylinder_type_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: cylinder_type_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+          description: current inventory version
+          title: If-Match
+        description: current inventory version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryAdjust'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -756,6 +801,16 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    InventoryAdjust:
+      properties:
+        quantity:
+          type: integer
+          minimum: 0.0
+          title: Quantity
+      type: object
+      required:
+      - quantity
+      title: InventoryAdjust
     InventoryOut:
       properties:
         cylinder_type_id:

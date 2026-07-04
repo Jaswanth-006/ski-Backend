@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Inventory, StockLedger
+from app.db.models import CylinderType, Inventory, StockLedger
 from app.schemas.inventory import InventoryOut, StockIntakeLine
 
 
@@ -26,6 +26,10 @@ class InvalidCylinderType(Exception):
 
 class StaleVersion(Exception):
     """The submitted inventory version is stale (someone else changed it first)."""
+
+    def __init__(self, current: int) -> None:
+        self.current = current
+        super().__init__(f"stale version; current is {current}")
 
 
 _LIST_SQL = text(
@@ -74,3 +78,42 @@ async def record_intake(
     except IntegrityError as exc:
         await db.rollback()
         raise InvalidCylinderType("one or more cylinder types are invalid") from exc
+
+
+async def adjust_inventory(
+    db: AsyncSession,
+    cylinder_type_id: uuid.UUID,
+    new_quantity: int,
+    expected_version: int,
+    created_by: uuid.UUID,
+) -> InventoryOut | None:
+    """Correct a count with optimistic locking (Phase 2-B). Returns None if there is no
+    inventory row yet; raises StaleVersion if the submitted version is out of date."""
+    inv = await db.get(Inventory, cylinder_type_id)
+    if inv is None:
+        return None
+    if inv.version != expected_version:
+        raise StaleVersion(inv.version)
+
+    delta = new_quantity - inv.quantity
+    inv.quantity = new_quantity
+    inv.version = expected_version + 1
+    db.add(
+        StockLedger(
+            cylinder_type_id=cylinder_type_id,
+            delta=delta,
+            reason="adjust",
+            created_by=created_by,
+        )
+    )
+    await db.commit()
+
+    ct = await db.get(CylinderType, cylinder_type_id)
+    assert ct is not None
+    return InventoryOut(
+        cylinder_type_id=cylinder_type_id,
+        code=ct.code,
+        label=ct.label,
+        quantity=inv.quantity,
+        version=inv.version,
+    )
