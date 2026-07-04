@@ -485,6 +485,54 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /v1/inventory:
+    get:
+      tags:
+      - stock
+      summary: Get Inventory
+      operationId: get_inventory_v1_inventory_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/InventoryOut'
+                type: array
+                title: Response Get Inventory V1 Inventory Get
+      security:
+      - HTTPBearer: []
+  /v1/stock/intake:
+    post:
+      tags:
+      - stock
+      summary: Stock Intake
+      operationId: stock_intake_v1_stock_intake_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockIntake'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/InventoryOut'
+                type: array
+                title: Response Stock Intake V1 Stock Intake Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /v1/jobs/ping:
     post:
       tags:
@@ -708,6 +756,32 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    InventoryOut:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        quantity:
+          type: integer
+          title: Quantity
+        version:
+          type: integer
+          title: Version
+      type: object
+      required:
+      - cylinder_type_id
+      - code
+      - label
+      - quantity
+      - version
+      title: InventoryOut
     JobEnqueued:
       properties:
         job_id:
@@ -889,6 +963,33 @@ components:
       required:
       - refresh_token
       title: RefreshRequest
+    StockIntake:
+      properties:
+        lines:
+          items:
+            $ref: '#/components/schemas/StockIntakeLine'
+          type: array
+          minItems: 1
+          title: Lines
+      type: object
+      required:
+      - lines
+      title: StockIntake
+    StockIntakeLine:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+      type: object
+      required:
+      - cylinder_type_id
+      - qty
+      title: StockIntakeLine
     TokenPair:
       properties:
         access_token:
