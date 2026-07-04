@@ -10,14 +10,16 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Price
 from app.schemas.pricing import PriceBulkItem, PriceOut
+from app.services import audit
 
 
 class InvalidCylinderType(Exception):
@@ -45,6 +47,19 @@ _RESOLVE_SQL = text(
 async def prices_for_date(db: AsyncSession, on_date: dt.date) -> list[PriceOut]:
     rows = (await db.execute(_RESOLVE_SQL, {"on_date": on_date})).mappings().all()
     return [PriceOut(**row) for row in rows]
+
+
+async def resolve_unit_price(
+    db: AsyncSession, cylinder_type_id: uuid.UUID, on_date: dt.date
+) -> Decimal | None:
+    """The price whose effective_date is the latest on/before `on_date` (01-BACKEND-PRD §5)."""
+    price: Decimal | None = await db.scalar(
+        select(Price.unit_price)
+        .where(Price.cylinder_type_id == cylinder_type_id, Price.effective_date <= on_date)
+        .order_by(Price.effective_date.desc())
+        .limit(1)
+    )
+    return price
 
 
 async def _upsert(
@@ -76,6 +91,14 @@ async def set_price(
 ) -> None:
     try:
         await _upsert(db, cylinder_type_id, unit_price, effective_date, created_by)
+        await audit.write(
+            db,
+            created_by,
+            "price.set",
+            "price",
+            f"{cylinder_type_id}:{effective_date}",
+            new={"unit_price": str(unit_price), "effective_date": str(effective_date)},
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -92,6 +115,14 @@ async def set_prices_bulk(
     try:
         for item in items:
             await _upsert(db, item.cylinder_type_id, item.unit_price, effective_date, created_by)
+        await audit.write(
+            db,
+            created_by,
+            "price.bulk",
+            "price",
+            str(effective_date),
+            new={"effective_date": str(effective_date), "count": len(items)},
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
