@@ -578,6 +578,111 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/sales:
+    post:
+      tags:
+      - sales
+      summary: Create Sale
+      operationId: create_sale_v1_sales_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - sales
+      summary: List Sales
+      operationId: list_sales_v1_sales_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      - name: status_filter
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status Filter
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SaleOut'
+                title: Response List Sales V1 Sales Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/sales/{sale_id}:
+    get:
+      tags:
+      - sales
+      summary: Get Sale
+      operationId: get_sale_v1_sales__sale_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sale_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sale Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/audit:
     get:
       tags:
@@ -825,6 +930,21 @@ components:
           title: Is Active
       type: object
       title: CylinderTypeUpdate
+    DenominationIn:
+      properties:
+        note_value:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Note Value
+        note_count:
+          type: integer
+          minimum: 0.0
+          title: Note Count
+      type: object
+      required:
+      - note_value
+      - note_count
+      title: DenominationIn
     ExpenseItemCreate:
       properties:
         name:
@@ -1114,6 +1234,146 @@ components:
       required:
       - refresh_token
       title: RefreshRequest
+    SaleCreate:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        lines:
+          items:
+            $ref: '#/components/schemas/SaleLineIn'
+          type: array
+          minItems: 1
+          title: Lines
+        denominations:
+          items:
+            $ref: '#/components/schemas/DenominationIn'
+          type: array
+          title: Denominations
+        upi_total:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi Total
+          default: '0'
+      type: object
+      required:
+      - delivery_id
+      - business_date
+      - lines
+      title: SaleCreate
+    SaleLineIn:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+      type: object
+      required:
+      - cylinder_type_id
+      - qty
+      title: SaleLineIn
+    SaleLineOut:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        qty:
+          type: integer
+          title: Qty
+        unit_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Unit Price
+        line_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Line Total
+      type: object
+      required:
+      - cylinder_type_id
+      - code
+      - label
+      - qty
+      - unit_price
+      - line_total
+      title: SaleLineOut
+    SaleOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        status:
+          type: string
+          title: Status
+        submitted_via:
+          type: string
+          title: Submitted Via
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        lines:
+          items:
+            $ref: '#/components/schemas/SaleLineOut'
+          type: array
+          title: Lines
+        cash_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cash Total
+        upi_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi Total
+        revenue_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Revenue Total
+      type: object
+      required:
+      - id
+      - delivery_id
+      - delivery_name
+      - business_date
+      - status
+      - submitted_via
+      - created_at
+      - lines
+      - cash_total
+      - upi_total
+      - revenue_total
+      title: SaleOut
     StockIntake:
       properties:
         lines:
