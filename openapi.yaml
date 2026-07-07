@@ -683,6 +683,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/day-sheet/{on_date}:
+    get:
+      tags:
+      - day-sheet
+      summary: Get Day Sheet
+      operationId: get_day_sheet_v1_day_sheet__on_date__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+          title: On Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaySheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/day-sheet/{on_date}/close:
+    post:
+      tags:
+      - day-sheet
+      summary: Close Day
+      operationId: close_day_v1_day_sheet__on_date__close_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+          title: On Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaySheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/audit:
     get:
       tags:
@@ -930,6 +988,93 @@ components:
           title: Is Active
       type: object
       title: CylinderTypeUpdate
+    DaySheetOut:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        is_closed:
+          type: boolean
+          title: Is Closed
+        closed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Closed At
+        rows:
+          items:
+            $ref: '#/components/schemas/DaySheetRow'
+          type: array
+          title: Rows
+        totals:
+          $ref: '#/components/schemas/DaySheetTotals'
+      type: object
+      required:
+      - business_date
+      - is_closed
+      - closed_at
+      - rows
+      - totals
+      title: DaySheetOut
+    DaySheetRow:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        cylinders:
+          type: integer
+          title: Cylinders
+        cash:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cash
+        upi:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+      type: object
+      required:
+      - delivery_id
+      - delivery_name
+      - cylinders
+      - cash
+      - upi
+      - total
+      title: DaySheetRow
+    DaySheetTotals:
+      properties:
+        cylinders:
+          type: integer
+          title: Cylinders
+        cash:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cash
+        upi:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+      type: object
+      required:
+      - cylinders
+      - cash
+      - upi
+      - total
+      title: DaySheetTotals
     DenominationIn:
       properties:
         note_value:
