@@ -772,6 +772,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/month-sheet/{year}/{month}:
+    get:
+      tags:
+      - month-sheet
+      summary: Get Month Sheet
+      operationId: get_month_sheet_v1_month_sheet__year___month__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: year
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Year
+      - name: month
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Month
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthSheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/expenses:
     post:
       tags:
@@ -1553,6 +1587,105 @@ components:
       required:
       - refresh_token
       title: LogoutRequest
+    MonthSheetDay:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        cylinders:
+          type: integer
+          title: Cylinders
+        cash:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cash
+        upi:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+        expenses:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expenses
+        net:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Net
+        is_closed:
+          type: boolean
+          title: Is Closed
+      type: object
+      required:
+      - business_date
+      - cylinders
+      - cash
+      - upi
+      - total
+      - expenses
+      - net
+      - is_closed
+      title: MonthSheetDay
+    MonthSheetOut:
+      properties:
+        year:
+          type: integer
+          title: Year
+        month:
+          type: integer
+          title: Month
+        days:
+          items:
+            $ref: '#/components/schemas/MonthSheetDay'
+          type: array
+          title: Days
+        totals:
+          $ref: '#/components/schemas/MonthSheetTotals'
+      type: object
+      required:
+      - year
+      - month
+      - days
+      - totals
+      title: MonthSheetOut
+    MonthSheetTotals:
+      properties:
+        cylinders:
+          type: integer
+          title: Cylinders
+        cash:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cash
+        upi:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+        expenses:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expenses
+        net:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Net
+      type: object
+      required:
+      - cylinders
+      - cash
+      - upi
+      - total
+      - expenses
+      - net
+      title: MonthSheetTotals
     PriceBulkItem:
       properties:
         cylinder_type_id:
