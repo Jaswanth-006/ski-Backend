@@ -56,7 +56,12 @@ async def update_cylinder_type(
     _: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CylinderType:
-    row = await catalog_service.update_cylinder_type(db, type_id, body)
+    try:
+        row = await catalog_service.update_cylinder_type(db, type_id, body)
+    except catalog_service.CodeAlreadyExists as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="a cylinder type with this code already exists"
+        ) from exc
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="cylinder type not found")
     return row

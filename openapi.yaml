@@ -1096,6 +1096,13 @@ components:
       title: CylinderTypeOut
     CylinderTypeUpdate:
       properties:
+        code:
+          anyOf:
+          - type: string
+            maxLength: 32
+            minLength: 1
+          - type: 'null'
+          title: Code
         label:
           anyOf:
           - type: string

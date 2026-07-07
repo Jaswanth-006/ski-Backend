@@ -62,11 +62,17 @@ async def update_cylinder_type(
     row = await db.get(CylinderType, type_id)
     if row is None:
         return None
+    if data.code is not None:
+        row.code = data.code
     if data.label is not None:
         row.label = data.label
     if data.is_active is not None:
         row.is_active = data.is_active
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise CodeAlreadyExists(data.code or "") from exc
     await db.refresh(row)
     return row
 
