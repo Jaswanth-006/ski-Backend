@@ -578,6 +578,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/audit:
+    get:
+      tags:
+      - audit
+      summary: List Audit
+      operationId: list_audit_v1_audit_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entity
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity
+      - name: entity_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditOut'
+                title: Response List Audit V1 Audit Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -674,6 +715,61 @@ paths:
                 title: Response Root  Get
 components:
   schemas:
+    AuditOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        actor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Actor Id
+        actor_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Name
+        action:
+          type: string
+          title: Action
+        entity:
+          type: string
+          title: Entity
+        entity_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Id
+        old_value:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Old Value
+        new_value:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: New Value
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - actor_id
+      - actor_name
+      - action
+      - entity
+      - entity_id
+      - old_value
+      - new_value
+      - created_at
+      title: AuditOut
     CylinderTypeCreate:
       properties:
         code:
