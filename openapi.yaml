@@ -741,6 +741,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/day-sheet/{on_date}/export:
+    post:
+      tags:
+      - day-sheet
+      summary: Export Day Sheet
+      description: Kick off an async Excel export; poll GET /v1/jobs/{id} for the
+        download URL.
+      operationId: export_day_sheet_v1_day_sheet__on_date__export_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+          title: On Date
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobEnqueued'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/expenses:
     post:
       tags:

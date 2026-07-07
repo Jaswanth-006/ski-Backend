@@ -10,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.day_sheet import DaySheetOut
+from app.schemas.jobs import JobEnqueued
 from app.services import day_sheet as day_sheet_service
+from app.services import jobs as jobs_service
+from app.workers.tasks import export_day_sheet as export_task
 
 router = APIRouter(tags=["day-sheet"])
 
@@ -34,3 +37,17 @@ async def close_day(
         return await day_sheet_service.close_day(db, on_date, current_user)
     except day_sheet_service.DayAlreadyClosed as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="the day is already closed") from exc
+
+
+@router.post(
+    "/day-sheet/{on_date}/export", response_model=JobEnqueued, status_code=status.HTTP_202_ACCEPTED
+)
+async def export_day_sheet(
+    on_date: dt.date,
+    current_user: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> JobEnqueued:
+    """Kick off an async Excel export; poll GET /v1/jobs/{id} for the download URL."""
+    job = await jobs_service.create_job(db, kind="export", requested_by=current_user.id)
+    export_task.delay(str(job.id), on_date.isoformat())
+    return JobEnqueued(job_id=job.id, status=job.status)
