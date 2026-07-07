@@ -13,6 +13,7 @@ class CylinderTypeCreate(BaseModel):
 
 
 class CylinderTypeUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=32)
     label: str | None = Field(default=None, min_length=1, max_length=120)
     is_active: bool | None = None
 
