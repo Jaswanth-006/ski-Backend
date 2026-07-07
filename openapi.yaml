@@ -1139,6 +1139,19 @@ components:
           title: Rows
         totals:
           $ref: '#/components/schemas/DaySheetTotals'
+        expenses_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expenses Total
+        net:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Net
+        denomination_totals:
+          items:
+            $ref: '#/components/schemas/Denomination'
+          type: array
+          title: Denomination Totals
       type: object
       required:
       - business_date
@@ -1146,6 +1159,9 @@ components:
       - closed_at
       - rows
       - totals
+      - expenses_total
+      - net
+      - denomination_totals
       title: DaySheetOut
     DaySheetRow:
       properties:
@@ -1171,6 +1187,11 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
+        denominations:
+          items:
+            $ref: '#/components/schemas/Denomination'
+          type: array
+          title: Denominations
       type: object
       required:
       - delivery_id
@@ -1179,6 +1200,7 @@ components:
       - cash
       - upi
       - total
+      - denominations
       title: DaySheetRow
     DaySheetTotals:
       properties:
@@ -1204,6 +1226,19 @@ components:
       - upi
       - total
       title: DaySheetTotals
+    Denomination:
+      properties:
+        note_value:
+          type: integer
+          title: Note Value
+        note_count:
+          type: integer
+          title: Note Count
+      type: object
+      required:
+      - note_value
+      - note_count
+      title: Denomination
     DenominationIn:
       properties:
         note_value:

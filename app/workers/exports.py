@@ -42,6 +42,23 @@ def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
     for cell in ws[ws.max_row]:
         cell.font = Font(bold=True)
 
+    ws.append([])
+    ws.append(["Expenses", "", "", "", float(sheet.expenses_total)])
+    ws.append(["Net (collection − expenses)", "", "", "", float(sheet.net)])
+    for cell in ws[ws.max_row]:
+        cell.font = Font(bold=True)
+
+    # Cash denomination breakdown (aggregated across all drivers).
+    if sheet.denomination_totals:
+        ws.append([])
+        ws.append(["Cash denominations"])
+        ws[ws.max_row][0].font = Font(bold=True)
+        ws.append(["Note", "Count", "Amount"])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+        for d in sheet.denomination_totals:
+            ws.append([d.note_value, d.note_count, d.note_value * d.note_count])
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
