@@ -22,3 +22,7 @@ class InventoryOut(BaseModel):
     label: str
     quantity: int
     version: int
+
+
+class InventoryAdjust(BaseModel):
+    quantity: int = Field(ge=0)
