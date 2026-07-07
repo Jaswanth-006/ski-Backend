@@ -14,6 +14,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import catalog as catalog_routes
 from app.api.routes import jobs as jobs_routes
 from app.api.routes import pricing as pricing_routes
+from app.api.routes import stock as stock_routes
 from app.api.routes import users as users_routes
 from app.core.config import settings
 from app.core.logging import configure_logging
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(users_routes.router, prefix="/v1")
     app.include_router(catalog_routes.router, prefix="/v1")
     app.include_router(pricing_routes.router, prefix="/v1")
+    app.include_router(stock_routes.router, prefix="/v1")
     app.include_router(jobs_routes.router, prefix="/v1")
 
     @app.get("/livez", tags=["health"])
