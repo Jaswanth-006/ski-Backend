@@ -8,13 +8,19 @@ Closing a day freezes it: the sale transaction rejects posts for a closed date
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import DaySheetStatus, User
-from app.schemas.day_sheet import DaySheetOut, DaySheetRow, DaySheetTotals
+from app.schemas.day_sheet import (
+    DaySheetOut,
+    DaySheetRow,
+    DaySheetTotals,
+    Denomination,
+)
 from app.services import audit
 
 
@@ -32,6 +38,19 @@ _AGG_SQL = text(
     FROM sales s
     WHERE s.business_date = :on_date AND s.status = 'approved'
     GROUP BY s.delivery_id
+    """
+)
+
+_EXP_SQL = text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date = :on_date")
+
+_DENOM_SQL = text(
+    """
+    SELECT s.delivery_id, cd.note_value, SUM(cd.note_count) AS note_count
+    FROM cash_denominations cd
+    JOIN sales s ON s.id = cd.sale_id
+    WHERE s.business_date = :on_date AND s.status = 'approved'
+    GROUP BY s.delivery_id, cd.note_value
+    HAVING SUM(cd.note_count) > 0
     """
 )
 
@@ -56,12 +75,20 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         .all()
     )
 
+    # Per-driver denomination breakdown: {delivery_id: {note_value: count}}
+    denom_by_driver: dict[uuid.UUID, dict[int, int]] = {}
+    for row in (await db.execute(_DENOM_SQL, {"on_date": on_date})).mappings().all():
+        denom_by_driver.setdefault(row["delivery_id"], {})[int(row["note_value"])] = int(
+            row["note_count"]
+        )
+
     rows: list[DaySheetRow] = []
     for d in drivers:
         a = agg.get(d["id"])
         cylinders = int(a["cylinders"]) if a else 0
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
+        notes = denom_by_driver.get(d["id"], {})
         rows.append(
             DaySheetRow(
                 delivery_id=d["id"],
@@ -70,8 +97,21 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 cash=cash,
                 upi=upi,
                 total=cash + upi,
+                denominations=[
+                    Denomination(note_value=v, note_count=notes[v])
+                    for v in sorted(notes, reverse=True)
+                ],
             )
         )
+
+    # Aggregate every driver's notes into a single per-value total.
+    combined: dict[int, int] = {}
+    for notes in denom_by_driver.values():
+        for value, count in notes.items():
+            combined[value] = combined.get(value, 0) + count
+    denomination_totals = [
+        Denomination(note_value=v, note_count=combined[v]) for v in sorted(combined, reverse=True)
+    ]
 
     totals = DaySheetTotals(
         cylinders=sum(r.cylinders for r in rows),
@@ -79,12 +119,16 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         upi=sum((r.upi for r in rows), Decimal(0)),
         total=sum((r.total for r in rows), Decimal(0)),
     )
+    expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
     return DaySheetOut(
         business_date=on_date,
         is_closed=bool(status and status.is_closed),
         closed_at=status.closed_at if status else None,
         rows=rows,
         totals=totals,
+        expenses_total=expenses_total,
+        net=totals.total - expenses_total,
+        denomination_totals=denomination_totals,
     )
 
 
