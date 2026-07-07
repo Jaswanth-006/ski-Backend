@@ -741,6 +741,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/expenses:
+    post:
+      tags:
+      - expenses
+      summary: Create Expense
+      operationId: create_expense_v1_expenses_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - expenses
+      summary: List Expenses
+      operationId: list_expenses_v1_expenses_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpenseOut'
+                title: Response List Expenses V1 Expenses Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/audit:
     get:
       tags:
@@ -1090,6 +1150,39 @@ components:
       - note_value
       - note_count
       title: DenominationIn
+    ExpenseCreate:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - business_date
+      - item_id
+      - amount
+      - method
+      title: ExpenseCreate
     ExpenseItemCreate:
       properties:
         name:
@@ -1153,6 +1246,50 @@ components:
           title: Is Active
       type: object
       title: ExpenseItemUpdate
+    ExpenseOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        item_name:
+          type: string
+          title: Item Name
+        amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - business_date
+      - item_id
+      - item_name
+      - amount
+      - method
+      - note
+      - created_at
+      title: ExpenseOut
     HTTPValidationError:
       properties:
         detail:
