@@ -801,6 +801,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/analytics/eod:
+    get:
+      tags:
+      - analytics
+      summary: Eod
+      operationId: eod_v1_analytics_eod_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EodOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/audit:
     get:
       tags:
@@ -1150,6 +1181,42 @@ components:
       - note_value
       - note_count
       title: DenominationIn
+    EodOut:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        cylinders_sold:
+          type: integer
+          title: Cylinders Sold
+        gross_cash:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Gross Cash
+        upi_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Upi Total
+        expenses_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expenses Total
+        net_profit:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Net Profit
+      type: object
+      required:
+      - business_date
+      - cylinders_sold
+      - gross_cash
+      - upi_total
+      - expenses_total
+      - net_profit
+      title: EodOut
     ExpenseCreate:
       properties:
         business_date:
