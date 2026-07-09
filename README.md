@@ -86,3 +86,17 @@ app/
   core/config.py   # env-driven settings (pydantic-settings)
 tests/             # smoke tests
 ```
+
+## Phase 8 — Cash, Banking & Reporting (post-v1)
+
+New domains (see `04-IMPLEMENTATION-PLAN.md` Phase 8):
+- **Banking master** (`banks`, `bank_accounts`, `vendors`) — soft-deleted, editable.
+- **Deposits/transfers** (`transfers`) — source (cashier box / bank account) → destination
+  (vendor / person / own account); bank-account balances derived from transfers.
+- **Cashier box** — persistent cash-in-hand (`GET /v1/cashier-box/{date}`), carries over day to day.
+- **Stock loads** (`stock_loads`) + `stock_ledger.business_date` — per-driver load/return and
+  warehouse opening/closing stock.
+- **Reports** (8-E, upcoming) — date-range aggregations from the read replica.
+
+Migrations `0004`–`0006`. Run `alembic upgrade head`. Regenerate the contract after any API change:
+`python scripts/export_openapi.py`, then `npm run gen:api` in the frontend.
