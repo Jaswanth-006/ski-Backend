@@ -1217,6 +1217,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/transfers:
+    post:
+      tags:
+      - transfers
+      summary: Create Transfer
+      operationId: create_transfer_v1_transfers_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - transfers
+      summary: List Transfers
+      operationId: list_transfers_v1_transfers_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransferOut'
+                title: Response List Transfers V1 Transfers Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -1414,6 +1483,10 @@ components:
         is_active:
           type: boolean
           title: Is Active
+        balance:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance
       type: object
       required:
       - id
@@ -1422,6 +1495,7 @@ components:
       - account_type
       - label
       - is_active
+      - balance
       title: BankAccountOut
     BankAccountUpdate:
       properties:
@@ -2374,6 +2448,133 @@ components:
       - access_token
       - refresh_token
       title: TokenPair
+    TransferCreate:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        source_kind:
+          type: string
+          enum:
+          - cashier_box
+          - bank_account
+          title: Source Kind
+        source_bank_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Bank Account Id
+        dest_kind:
+          type: string
+          enum:
+          - vendor
+          - person
+          - bank_account
+          title: Dest Kind
+        dest_vendor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Dest Vendor Id
+        dest_bank_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Dest Bank Account Id
+        dest_person_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Dest Person Name
+        method:
+          type: string
+          maxLength: 40
+          minLength: 1
+          title: Method
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - business_date
+      - amount
+      - source_kind
+      - dest_kind
+      - method
+      title: TransferCreate
+    TransferOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        source_kind:
+          type: string
+          enum:
+          - cashier_box
+          - bank_account
+          title: Source Kind
+        source_label:
+          type: string
+          title: Source Label
+        dest_kind:
+          type: string
+          enum:
+          - vendor
+          - person
+          - bank_account
+          title: Dest Kind
+        dest_label:
+          type: string
+          title: Dest Label
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - business_date
+      - amount
+      - source_kind
+      - source_label
+      - dest_kind
+      - dest_label
+      - method
+      - note
+      - created_at
+      title: TransferOut
     UserCreate:
       properties:
         name:

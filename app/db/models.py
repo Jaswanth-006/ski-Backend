@@ -378,3 +378,44 @@ class Vendor(Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+# ============ Transfers / deposits (Phase 8-C) ============
+class Transfer(Base):
+    __tablename__ = "transfers"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_transfers_amount_pos"),
+        CheckConstraint(
+            "source_kind IN ('cashier_box','bank_account')", name="ck_transfers_source_kind"
+        ),
+        CheckConstraint(
+            "dest_kind IN ('vendor','person','bank_account')", name="ck_transfers_dest_kind"
+        ),
+        Index("idx_transfers_date", "business_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    source_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    source_bank_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bank_accounts.id"), nullable=True
+    )
+    dest_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    dest_vendor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=True
+    )
+    dest_bank_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bank_accounts.id"), nullable=True
+    )
+    dest_person_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    method: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
