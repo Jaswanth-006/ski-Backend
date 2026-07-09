@@ -1,4 +1,4 @@
-"""Schema shape tests (no DB required) — guards the 14 v1 tables and key constraints."""
+"""Schema shape tests (no DB required) — guards the registered tables and key constraints."""
 
 from __future__ import annotations
 
@@ -21,6 +21,9 @@ EXPECTED_TABLES = {
     "day_sheet_status",
     "audit_log",
     "jobs",  # added in Phase 0-F
+    "banks",  # added in Phase 8-B
+    "bank_accounts",
+    "vendors",
 }
 
 

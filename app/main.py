@@ -13,6 +13,7 @@ from app.api.middleware import RequestContextMiddleware
 from app.api.routes import analytics as analytics_routes
 from app.api.routes import audit as audit_routes
 from app.api.routes import auth as auth_routes
+from app.api.routes import banking as banking_routes
 from app.api.routes import catalog as catalog_routes
 from app.api.routes import day_sheet as day_sheet_routes
 from app.api.routes import expenses as expenses_routes
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(expenses_routes.router, prefix="/v1")
     app.include_router(analytics_routes.router, prefix="/v1")
     app.include_router(audit_routes.router, prefix="/v1")
+    app.include_router(banking_routes.router, prefix="/v1")
     app.include_router(jobs_routes.router, prefix="/v1")
 
     @app.get("/livez", tags=["health"])
