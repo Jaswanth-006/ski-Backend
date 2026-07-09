@@ -1375,6 +1375,162 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/stock:
+    get:
+      tags:
+      - reports
+      summary: Stock Report
+      operationId: stock_report_v1_reports_stock_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockReportRow'
+                title: Response Stock Report V1 Reports Stock Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/delivery:
+    get:
+      tags:
+      - reports
+      summary: Delivery Report
+      operationId: delivery_report_v1_reports_delivery_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryReportRow'
+                title: Response Delivery Report V1 Reports Delivery Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/expenses:
+    get:
+      tags:
+      - reports
+      summary: Expense Report
+      operationId: expense_report_v1_reports_expenses_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpenseReportRow'
+                title: Response Expense Report V1 Reports Expenses Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/deposits:
+    get:
+      tags:
+      - reports
+      summary: Deposit Report
+      operationId: deposit_report_v1_reports_deposits_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepositReportRow'
+                title: Response Deposit Report V1 Reports Deposits Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -1880,6 +2036,32 @@ components:
       - upi
       - total
       title: DaySheetTotals
+    DeliveryReportRow:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        sold:
+          type: integer
+          title: Sold
+        loaded:
+          type: integer
+          title: Loaded
+        returned:
+          type: integer
+          title: Returned
+      type: object
+      required:
+      - delivery_id
+      - delivery_name
+      - sold
+      - loaded
+      - returned
+      title: DeliveryReportRow
     Denomination:
       properties:
         note_value:
@@ -1908,6 +2090,28 @@ components:
       - note_value
       - note_count
       title: DenominationIn
+    DepositReportRow:
+      properties:
+        kind:
+          type: string
+          title: Kind
+        recipient:
+          type: string
+          title: Recipient
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - kind
+      - recipient
+      - total
+      - count
+      title: DepositReportRow
     EodOut:
       properties:
         business_date:
@@ -2084,6 +2288,29 @@ components:
       - note
       - created_at
       title: ExpenseOut
+    ExpenseReportRow:
+      properties:
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        item_name:
+          type: string
+          title: Item Name
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - item_id
+      - item_name
+      - total
+      - count
+      title: ExpenseReportRow
     HTTPValidationError:
       properties:
         detail:
@@ -2653,6 +2880,40 @@ components:
       - cylinder_type_id
       - loaded_qty
       title: StockLoadUpsert
+    StockReportRow:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        bought:
+          type: integer
+          title: Bought
+        sold:
+          type: integer
+          title: Sold
+        loaded:
+          type: integer
+          title: Loaded
+        returned:
+          type: integer
+          title: Returned
+      type: object
+      required:
+      - cylinder_type_id
+      - code
+      - label
+      - bought
+      - sold
+      - loaded
+      - returned
+      title: StockReportRow
     StockSummary:
       properties:
         opening:
