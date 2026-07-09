@@ -12,7 +12,7 @@ import uuid
 from collections.abc import AsyncIterator, Sequence
 
 import pytest_asyncio
-from app.api.deps import get_db
+from app.api.deps import get_db, get_replica_db
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.models import (
@@ -131,11 +131,13 @@ async def client() -> AsyncIterator[tuple[AsyncClient, SeededUsers]]:
 
     assert admin_id is not None and office_id is not None and delivery_id is not None
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_replica_db] = override_get_db  # tests share one engine
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http_client:
         yield http_client, SeededUsers(admin_id, office_id, delivery_id)
 
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_replica_db, None)
     async with session_factory() as session:
         await _purge_users(session, [admin_id, office_id, delivery_id])
         await session.commit()
