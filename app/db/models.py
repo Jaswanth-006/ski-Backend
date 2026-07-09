@@ -135,6 +135,9 @@ class StockLedger(Base):
     )
     delta: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    business_date: Mapped[dt.date] = mapped_column(
+        Date, nullable=False, server_default=text("CURRENT_DATE")
+    )
     ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
@@ -413,6 +416,37 @@ class Transfer(Base):
     dest_person_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     method: Mapped[str] = mapped_column(Text, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# ============ Per-driver daily stock load/return (Phase 8-D) ============
+class StockLoad(Base):
+    __tablename__ = "stock_loads"
+    __table_args__ = (
+        CheckConstraint("loaded_qty >= 0", name="ck_stock_loads_loaded_nonneg"),
+        CheckConstraint("returned_qty >= 0", name="ck_stock_loads_returned_nonneg"),
+        UniqueConstraint(
+            "business_date", "delivery_id", "cylinder_type_id", name="uq_stock_loads_day"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
+    )
+    loaded_qty: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    returned_qty: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

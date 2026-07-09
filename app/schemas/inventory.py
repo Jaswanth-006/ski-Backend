@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ class StockIntakeLine(BaseModel):
 
 class StockIntake(BaseModel):
     lines: list[StockIntakeLine] = Field(min_length=1)
+    business_date: dt.date | None = None  # defaults to today
 
 
 class InventoryOut(BaseModel):

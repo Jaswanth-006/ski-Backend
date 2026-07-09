@@ -533,6 +533,66 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /v1/stock/loads:
+    post:
+      tags:
+      - stock
+      summary: Upsert Stock Load
+      description: Record how many cylinders a driver loaded out (and returned) for
+        a date.
+      operationId: upsert_stock_load_v1_stock_loads_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockLoadUpsert'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockLoadOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - stock
+      summary: List Stock Loads
+      operationId: list_stock_loads_v1_stock_loads_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockLoadOut'
+                title: Response List Stock Loads V1 Stock Loads Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/inventory/{cylinder_type_id}:
     patch:
       tags:
@@ -1733,6 +1793,8 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cashier Closing
+        stock:
+          $ref: '#/components/schemas/StockSummary'
       type: object
       required:
       - business_date
@@ -1745,6 +1807,7 @@ components:
       - denomination_totals
       - cashier_opening
       - cashier_closing
+      - stock
       title: DaySheetOut
     DaySheetRow:
       properties:
@@ -1758,6 +1821,12 @@ components:
         cylinders:
           type: integer
           title: Cylinders
+        loaded:
+          type: integer
+          title: Loaded
+        returned:
+          type: integer
+          title: Returned
         cash:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -1780,6 +1849,8 @@ components:
       - delivery_id
       - delivery_name
       - cylinders
+      - loaded
+      - returned
       - cash
       - upi
       - total
@@ -2486,6 +2557,12 @@ components:
           type: array
           minItems: 1
           title: Lines
+        business_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Business Date
       type: object
       required:
       - lines
@@ -2505,6 +2582,102 @@ components:
       - cylinder_type_id
       - qty
       title: StockIntakeLine
+    StockLoadOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        code:
+          type: string
+          title: Code
+        loaded_qty:
+          type: integer
+          title: Loaded Qty
+        returned_qty:
+          type: integer
+          title: Returned Qty
+      type: object
+      required:
+      - id
+      - business_date
+      - delivery_id
+      - delivery_name
+      - cylinder_type_id
+      - code
+      - loaded_qty
+      - returned_qty
+      title: StockLoadOut
+    StockLoadUpsert:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        loaded_qty:
+          type: integer
+          minimum: 0.0
+          title: Loaded Qty
+        returned_qty:
+          type: integer
+          minimum: 0.0
+          title: Returned Qty
+          default: 0
+      type: object
+      required:
+      - business_date
+      - delivery_id
+      - cylinder_type_id
+      - loaded_qty
+      title: StockLoadUpsert
+    StockSummary:
+      properties:
+        opening:
+          type: integer
+          title: Opening
+        loaded:
+          type: integer
+          title: Loaded
+        sold:
+          type: integer
+          title: Sold
+        returned:
+          type: integer
+          title: Returned
+        closing:
+          type: integer
+          title: Closing
+      type: object
+      required:
+      - opening
+      - loaded
+      - sold
+      - returned
+      - closing
+      title: StockSummary
     TokenPair:
       properties:
         access_token:

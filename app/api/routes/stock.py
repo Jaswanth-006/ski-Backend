@@ -3,6 +3,7 @@ to office + owner (delivery does not manage stock)."""
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -11,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
+from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
 from app.services import inventory as inventory_service
+from app.services import stock_loads as stock_loads_service
 
 router = APIRouter(tags=["stock"])
 
@@ -31,10 +34,32 @@ async def stock_intake(
     db: AsyncSession = Depends(get_db),
 ) -> list[InventoryOut]:
     try:
-        await inventory_service.record_intake(db, body.lines, current_user.id)
+        await inventory_service.record_intake(db, body.lines, current_user.id, body.business_date)
     except inventory_service.InvalidCylinderType as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid cylinder type") from exc
     return await inventory_service.list_inventory(db)
+
+
+@router.post("/stock/loads", response_model=StockLoadOut, status_code=status.HTTP_201_CREATED)
+async def upsert_stock_load(
+    body: StockLoadUpsert,
+    current_user: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StockLoadOut:
+    """Record how many cylinders a driver loaded out (and returned) for a date."""
+    try:
+        return await stock_loads_service.upsert_load(db, body, current_user.id)
+    except stock_loads_service.InvalidReference as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"invalid {exc}") from exc
+
+
+@router.get("/stock/loads", response_model=list[StockLoadOut])
+async def list_stock_loads(
+    date: dt.date,
+    _: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> list[StockLoadOut]:
+    return await stock_loads_service.list_loads(db, date)
 
 
 @router.patch("/inventory/{cylinder_type_id}", response_model=InventoryOut)

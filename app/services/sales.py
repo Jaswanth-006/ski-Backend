@@ -121,6 +121,7 @@ async def create_and_post_sale(
                 cylinder_type_id=line.cylinder_type_id,
                 delta=-line.qty,
                 reason="sale",
+                business_date=data.business_date,
                 ref_id=sale.id,
                 created_by=actor.id,
             )

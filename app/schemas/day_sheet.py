@@ -17,11 +17,21 @@ class Denomination(BaseModel):
 class DaySheetRow(BaseModel):
     delivery_id: uuid.UUID
     delivery_name: str
-    cylinders: int
+    cylinders: int  # sold
+    loaded: int  # cylinders loaded out to this driver
+    returned: int  # cylinders brought back
     cash: Decimal
     upi: Decimal
     total: Decimal
     denominations: list[Denomination]  # this driver's note breakdown, high value first
+
+
+class StockSummary(BaseModel):
+    opening: int  # warehouse cylinders carried into the day
+    loaded: int  # total loaded out to drivers
+    sold: int  # total sold
+    returned: int  # total returned to the warehouse
+    closing: int  # warehouse cylinders at end of day
 
 
 class DaySheetTotals(BaseModel):
@@ -42,3 +52,4 @@ class DaySheetOut(BaseModel):
     denomination_totals: list[Denomination]  # aggregated across all drivers, high value first
     cashier_opening: Decimal  # cashier box balance carried into this day
     cashier_closing: Decimal  # cashier box balance at end of this day
+    stock: StockSummary  # warehouse opening/loaded/sold/returned/closing for the day

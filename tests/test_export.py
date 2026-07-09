@@ -6,7 +6,7 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
-from app.schemas.day_sheet import DaySheetOut, DaySheetTotals
+from app.schemas.day_sheet import DaySheetOut, DaySheetTotals, StockSummary
 from app.workers.exports import build_day_sheet_xlsx
 from app.workers.tasks import export_day_sheet
 from httpx import AsyncClient
@@ -26,6 +26,7 @@ def test_build_day_sheet_xlsx_returns_valid_workbook() -> None:
         denomination_totals=[],
         cashier_opening=Decimal(0),
         cashier_closing=Decimal(0),
+        stock=StockSummary(opening=0, loaded=0, sold=0, returned=0, closing=0),
     )
     data = build_day_sheet_xlsx(sheet)
     assert data[:2] == b"PK"  # .xlsx is a zip archive
