@@ -40,3 +40,5 @@ class DaySheetOut(BaseModel):
     expenses_total: Decimal
     net: Decimal  # collection total − expenses
     denomination_totals: list[Denomination]  # aggregated across all drivers, high value first
+    cashier_opening: Decimal  # cashier box balance carried into this day
+    cashier_closing: Decimal  # cashier box balance at end of this day

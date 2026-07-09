@@ -21,7 +21,7 @@ from app.schemas.day_sheet import (
     DaySheetTotals,
     Denomination,
 )
-from app.services import audit
+from app.services import audit, cashier_box
 
 
 class DayAlreadyClosed(Exception):
@@ -120,6 +120,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         total=sum((r.total for r in rows), Decimal(0)),
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
+    cashier_opening, cashier_closing = await cashier_box.opening_closing(db, on_date)
     return DaySheetOut(
         business_date=on_date,
         is_closed=bool(status and status.is_closed),
@@ -129,6 +130,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         expenses_total=expenses_total,
         net=totals.total - expenses_total,
         denomination_totals=denomination_totals,
+        cashier_opening=cashier_opening,
+        cashier_closing=cashier_closing,
     )
 
 

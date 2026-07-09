@@ -1286,6 +1286,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/cashier-box/{on_date}:
+    get:
+      tags:
+      - cashier-box
+      summary: Get Cashier Box
+      operationId: get_cashier_box_v1_cashier_box__on_date__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+          title: On Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashierBoxOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -1564,6 +1593,41 @@ components:
           title: Is Active
       type: object
       title: BankUpdate
+    CashierBoxOut:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        opening:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Opening
+        collected:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Collected
+        expenses:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expenses
+        deposited:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Deposited
+        closing:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Closing
+      type: object
+      required:
+      - business_date
+      - opening
+      - collected
+      - expenses
+      - deposited
+      - closing
+      title: CashierBoxOut
     CylinderTypeCreate:
       properties:
         code:
@@ -1661,6 +1725,14 @@ components:
             $ref: '#/components/schemas/Denomination'
           type: array
           title: Denomination Totals
+        cashier_opening:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cashier Opening
+        cashier_closing:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cashier Closing
       type: object
       required:
       - business_date
@@ -1671,6 +1743,8 @@ components:
       - expenses_total
       - net
       - denomination_totals
+      - cashier_opening
+      - cashier_closing
       title: DaySheetOut
     DaySheetRow:
       properties:
