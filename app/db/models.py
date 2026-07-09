@@ -334,3 +334,47 @@ class AuditLog(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+# ============ Banking master data (Phase 8-B) ============
+class Bank(Base):
+    __tablename__ = "banks"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_banks_name"),
+        Index("idx_banks_active", "is_active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+    __table_args__ = (Index("idx_bank_accounts_bank", "bank_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    bank_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("banks.id"), nullable=False
+    )
+    account_type: Mapped[str] = mapped_column(Text, nullable=False)
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class Vendor(Base):
+    __tablename__ = "vendors"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_vendors_name"),
+        Index("idx_vendors_active", "is_active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))

@@ -938,6 +938,285 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/banks:
+    get:
+      tags:
+      - banking
+      summary: List Banks
+      operationId: list_banks_v1_banks_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: string
+          default: 'true'
+          title: Active
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankOut'
+                title: Response List Banks V1 Banks Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - banking
+      summary: Create Bank
+      operationId: create_bank_v1_banks_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/banks/{bank_id}:
+    patch:
+      tags:
+      - banking
+      summary: Update Bank
+      operationId: update_bank_v1_banks__bank_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: bank_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Bank Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/bank-accounts:
+    get:
+      tags:
+      - banking
+      summary: List Bank Accounts
+      operationId: list_bank_accounts_v1_bank_accounts_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: string
+          default: 'true'
+          title: Active
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankAccountOut'
+                title: Response List Bank Accounts V1 Bank Accounts Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - banking
+      summary: Create Bank Account
+      operationId: create_bank_account_v1_bank_accounts_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankAccountCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccountOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/bank-accounts/{account_id}:
+    patch:
+      tags:
+      - banking
+      summary: Update Bank Account
+      operationId: update_bank_account_v1_bank_accounts__account_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: account_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Account Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankAccountUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccountOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/vendors:
+    get:
+      tags:
+      - banking
+      summary: List Vendors
+      operationId: list_vendors_v1_vendors_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: string
+          default: 'true'
+          title: Active
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VendorOut'
+                title: Response List Vendors V1 Vendors Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - banking
+      summary: Create Vendor
+      operationId: create_vendor_v1_vendors_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/vendors/{vendor_id}:
+    patch:
+      tags:
+      - banking
+      summary: Update Vendor
+      operationId: update_vendor_v1_vendors__vendor_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: vendor_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vendor Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -1089,6 +1368,128 @@ components:
       - new_value
       - created_at
       title: AuditOut
+    BankAccountCreate:
+      properties:
+        bank_id:
+          type: string
+          format: uuid
+          title: Bank Id
+        account_type:
+          type: string
+          maxLength: 60
+          minLength: 1
+          title: Account Type
+        label:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Label
+      type: object
+      required:
+      - bank_id
+      - account_type
+      title: BankAccountCreate
+    BankAccountOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        bank_id:
+          type: string
+          format: uuid
+          title: Bank Id
+        bank_name:
+          type: string
+          title: Bank Name
+        account_type:
+          type: string
+          title: Account Type
+        label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Label
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - bank_id
+      - bank_name
+      - account_type
+      - label
+      - is_active
+      title: BankAccountOut
+    BankAccountUpdate:
+      properties:
+        account_type:
+          anyOf:
+          - type: string
+            maxLength: 60
+            minLength: 1
+          - type: 'null'
+          title: Account Type
+        label:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Label
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: BankAccountUpdate
+    BankCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: BankCreate
+    BankOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - name
+      - is_active
+      title: BankOut
+    BankUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: BankUpdate
     CylinderTypeCreate:
       properties:
         code:
@@ -2080,6 +2481,51 @@ components:
       - msg
       - type
       title: ValidationError
+    VendorCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: VendorCreate
+    VendorOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - name
+      - is_active
+      title: VendorOut
+    VendorUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: VendorUpdate
   securitySchemes:
     HTTPBearer:
       type: http
