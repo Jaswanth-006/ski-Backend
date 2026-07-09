@@ -13,8 +13,15 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.logging import request_id_ctx
+from app.core.metrics import LATENCY, REQUESTS
 
 _access_logger = logging.getLogger("app.access")
+
+
+def _route_label(request: Request) -> str:
+    """Matched route template (e.g. /v1/sales/{id}) to keep metric cardinality bounded."""
+    route = request.scope.get("route")
+    return getattr(route, "path", request.url.path)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -25,7 +32,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            elapsed = time.perf_counter() - start
+            duration_ms = round(elapsed * 1000, 2)
+            path = _route_label(request)
+            REQUESTS.labels(request.method, path, "500").inc()
+            LATENCY.labels(request.method, path).observe(elapsed)
             _access_logger.exception(
                 "request failed",
                 extra={
@@ -36,7 +47,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             )
             raise
         else:
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            elapsed = time.perf_counter() - start
+            duration_ms = round(elapsed * 1000, 2)
+            path = _route_label(request)
+            REQUESTS.labels(request.method, path, str(response.status_code)).inc()
+            LATENCY.labels(request.method, path).observe(elapsed)
             _access_logger.info(
                 "request",
                 extra={
