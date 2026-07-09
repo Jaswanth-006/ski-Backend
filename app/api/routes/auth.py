@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core import rate_limit
 from app.db.models import User
 from app.schemas.auth import LoginRequest, LogoutRequest, RefreshRequest, TokenPair, UserOut
 from app.services import auth as auth_service
@@ -15,10 +16,17 @@ router = APIRouter(tags=["auth"])
 
 @router.post("/auth/login", response_model=TokenPair)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenPair:
+    if await rate_limit.is_login_blocked(body.phone):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="too many failed attempts — try again later",
+        )
     try:
         user = await auth_service.authenticate_user(db, body.phone, body.password)
     except auth_service.AuthError as exc:
+        await rate_limit.record_login_failure(body.phone)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="invalid credentials") from exc
+    await rate_limit.clear_login_failures(body.phone)
     access, refresh = await auth_service.issue_token_pair(db, user)
     return TokenPair(access_token=access, refresh_token=refresh)
 

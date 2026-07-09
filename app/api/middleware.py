@@ -47,6 +47,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 },
             )
             response.headers["X-Request-ID"] = request_id
+            # Security headers (Phase 7-B).
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
             return response
         finally:
             request_id_ctx.reset(token)
