@@ -6,7 +6,7 @@ and the /v1 routers. Business routers arrive in later phases.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Response, status
 from sqlalchemy import text
 
 from app.api.middleware import RequestContextMiddleware
@@ -26,6 +26,7 @@ from app.api.routes import sales as sales_routes
 from app.api.routes import stock as stock_routes
 from app.api.routes import transfers as transfers_routes
 from app.api.routes import users as users_routes
+from app.core import metrics as metrics_mod
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.observability import init_sentry
@@ -65,6 +66,11 @@ def create_app() -> FastAPI:
     async def livez() -> dict[str, str]:
         """Liveness: the process is up."""
         return {"status": "ok"}
+
+    @app.get("/metrics", tags=["health"], include_in_schema=False)
+    async def metrics() -> Response:
+        """Prometheus metrics (request rate/latency/errors) for scraping."""
+        return Response(metrics_mod.render_latest(), media_type=metrics_mod.CONTENT_TYPE_LATEST)
 
     @app.get("/readyz", tags=["health"])
     async def readyz() -> dict[str, str]:
