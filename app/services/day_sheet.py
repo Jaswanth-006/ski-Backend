@@ -20,8 +20,9 @@ from app.schemas.day_sheet import (
     DaySheetRow,
     DaySheetTotals,
     Denomination,
+    StockSummary,
 )
-from app.services import audit, cashier_box
+from app.services import audit, cashier_box, stock_loads
 
 
 class DayAlreadyClosed(Exception):
@@ -82,6 +83,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
             row["note_count"]
         )
 
+    loads = await stock_loads.loads_by_driver(db, on_date)
+
     rows: list[DaySheetRow] = []
     for d in drivers:
         a = agg.get(d["id"])
@@ -89,11 +92,14 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
         notes = denom_by_driver.get(d["id"], {})
+        loaded, returned = loads.get(d["id"], (0, 0))
         rows.append(
             DaySheetRow(
                 delivery_id=d["id"],
                 delivery_name=d["name"],
                 cylinders=cylinders,
+                loaded=loaded,
+                returned=returned,
                 cash=cash,
                 upi=upi,
                 total=cash + upi,
@@ -121,6 +127,14 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
     cashier_opening, cashier_closing = await cashier_box.opening_closing(db, on_date)
+    opening_stock, closing_stock = await stock_loads.warehouse_opening_closing(db, on_date)
+    stock = StockSummary(
+        opening=opening_stock,
+        loaded=sum(r.loaded for r in rows),
+        sold=totals.cylinders,
+        returned=sum(r.returned for r in rows),
+        closing=closing_stock,
+    )
     return DaySheetOut(
         business_date=on_date,
         is_closed=bool(status and status.is_closed),
@@ -132,6 +146,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         denomination_totals=denomination_totals,
         cashier_opening=cashier_opening,
         cashier_closing=cashier_closing,
+        stock=stock,
     )
 
 

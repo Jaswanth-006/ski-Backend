@@ -8,6 +8,7 @@ optimistic locking (Phase 2-B).
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from collections.abc import Sequence
 
@@ -51,8 +52,12 @@ async def list_inventory(db: AsyncSession) -> list[InventoryOut]:
 
 
 async def record_intake(
-    db: AsyncSession, lines: Sequence[StockIntakeLine], created_by: uuid.UUID
+    db: AsyncSession,
+    lines: Sequence[StockIntakeLine],
+    created_by: uuid.UUID,
+    business_date: dt.date | None = None,
 ) -> None:
+    bd = business_date or dt.date.today()
     try:
         for line in lines:
             db.add(
@@ -60,6 +65,7 @@ async def record_intake(
                     cylinder_type_id=line.cylinder_type_id,
                     delta=line.qty,
                     reason="intake",
+                    business_date=bd,
                     created_by=created_by,
                 )
             )

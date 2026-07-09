@@ -28,6 +28,7 @@ from app.db.models import (
     Sale,
     SaleLine,
     StockLedger,
+    StockLoad,
     Transfer,
     User,
 )
@@ -67,6 +68,7 @@ async def _purge_users(session: AsyncSession, ids: Sequence[uuid.UUID]) -> None:
         await session.execute(delete(SaleLine).where(SaleLine.sale_id.in_(sale_ids)))
         await session.execute(delete(StockLedger).where(StockLedger.ref_id.in_(sale_ids)))
         await session.execute(delete(Sale).where(Sale.id.in_(sale_ids)))
+    await session.execute(delete(StockLoad).where(StockLoad.created_by.in_(ids)))
     await session.execute(delete(StockLedger).where(StockLedger.created_by.in_(ids)))
     await session.execute(delete(Price).where(Price.created_by.in_(ids)))
     await session.execute(delete(Transfer).where(Transfer.created_by.in_(ids)))
