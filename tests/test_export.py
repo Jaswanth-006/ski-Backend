@@ -24,6 +24,8 @@ def test_build_day_sheet_xlsx_returns_valid_workbook() -> None:
         expenses_total=Decimal(0),
         net=Decimal(0),
         denomination_totals=[],
+        cashier_opening=Decimal(0),
+        cashier_closing=Decimal(0),
     )
     data = build_day_sheet_xlsx(sheet)
     assert data[:2] == b"PK"  # .xlsx is a zip archive
