@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    # Security hardening (Phase 7-B). Login brute-force throttle (Redis-backed, fail-open);
+    # security response headers are always sent.
+    login_rate_limit_max: int = 5  # failed attempts per phone within the window
+    login_rate_limit_window_seconds: int = 300
+
     # Observability (Phase 0-D). Sentry is disabled unless a DSN is provided.
     log_level: str = "INFO"
     sentry_dsn: str | None = None
