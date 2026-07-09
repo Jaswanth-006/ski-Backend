@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +42,7 @@ class BankAccountOut(BaseModel):
     account_type: str
     label: str | None
     is_active: bool
+    balance: Decimal  # running balance from transfers in/out
 
 
 class VendorCreate(BaseModel):

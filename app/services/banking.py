@@ -7,6 +7,7 @@ history intact). Everything is fully editable.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Select, select
@@ -23,6 +24,7 @@ from app.schemas.banking import (
     VendorCreate,
     VendorUpdate,
 )
+from app.services.transfers import bank_account_balances
 
 
 class NameAlreadyExists(Exception):
@@ -81,6 +83,7 @@ async def list_bank_accounts(db: AsyncSession, active: str = "true") -> list[Ban
     stmt = select(BankAccount, Bank.name).join(Bank, Bank.id == BankAccount.bank_id)
     stmt = _active_filter(stmt, BankAccount, active).order_by(Bank.name, BankAccount.account_type)
     rows = (await db.execute(stmt)).all()
+    balances = await bank_account_balances(db)
     return [
         BankAccountOut(
             id=acc.id,
@@ -89,6 +92,7 @@ async def list_bank_accounts(db: AsyncSession, active: str = "true") -> list[Ban
             account_type=acc.account_type,
             label=acc.label,
             is_active=acc.is_active,
+            balance=balances.get(acc.id, Decimal(0)),
         )
         for acc, bank_name in rows
     ]
@@ -96,6 +100,7 @@ async def list_bank_accounts(db: AsyncSession, active: str = "true") -> list[Ban
 
 async def _to_account_out(db: AsyncSession, acc: BankAccount) -> BankAccountOut:
     bank_name = await db.scalar(select(Bank.name).where(Bank.id == acc.bank_id))
+    balances = await bank_account_balances(db)
     return BankAccountOut(
         id=acc.id,
         bank_id=acc.bank_id,
@@ -103,6 +108,7 @@ async def _to_account_out(db: AsyncSession, acc: BankAccount) -> BankAccountOut:
         account_type=acc.account_type,
         label=acc.label,
         is_active=acc.is_active,
+        balance=balances.get(acc.id, Decimal(0)),
     )
 
 

@@ -22,6 +22,7 @@ from app.api.routes import month_sheet as month_sheet_routes
 from app.api.routes import pricing as pricing_routes
 from app.api.routes import sales as sales_routes
 from app.api.routes import stock as stock_routes
+from app.api.routes import transfers as transfers_routes
 from app.api.routes import users as users_routes
 from app.core.config import settings
 from app.core.logging import configure_logging
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_routes.router, prefix="/v1")
     app.include_router(audit_routes.router, prefix="/v1")
     app.include_router(banking_routes.router, prefix="/v1")
+    app.include_router(transfers_routes.router, prefix="/v1")
     app.include_router(jobs_routes.router, prefix="/v1")
 
     @app.get("/livez", tags=["health"])

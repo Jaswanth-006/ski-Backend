@@ -24,6 +24,7 @@ EXPECTED_TABLES = {
     "banks",  # added in Phase 8-B
     "bank_accounts",
     "vendors",
+    "transfers",  # added in Phase 8-C
 }
 
 
