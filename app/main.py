@@ -7,6 +7,7 @@ and the /v1 routers. Business routers arrive in later phases.
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.middleware import RequestContextMiddleware
@@ -44,6 +45,13 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     app.include_router(auth_routes.router, prefix="/v1")
     app.include_router(users_routes.router, prefix="/v1")

@@ -1,0 +1,24 @@
+# Render Blueprint for the Ski API (Phase 7-E). Deploy: Render → New → Blueprint → this repo.
+# Set the `sync: false` secrets in the dashboard (values in DEPLOYMENT.md). Postgres is external
+# (Neon); the free web service sleeps after 15 min — keep it warm with a cron pinger on /livez.
+services:
+  - type: web
+    name: ski-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /livez
+    # Run migrations, then start the server (honours Render's $PORT).
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong secret
+      - key: DATABASE_URL
+        sync: false # Neon connection string (postgresql+asyncpg://…?sslmode=require)
+      - key: CORS_ORIGINS
+        sync: false # your Vercel URL, e.g. https://ski.vercel.app
+      - key: REDIS_URL
+        sync: false # Upstash rediss://… (optional — throttle fails open without it)
