@@ -9,8 +9,8 @@ services:
     plan: free
     region: singapore
     healthCheckPath: /livez
-    # Run migrations, then start the server (honours Render's $PORT).
-    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    # Start command lives in the image CMD (Dockerfile): `alembic upgrade head && uvicorn …`.
+    # Do NOT set dockerCommand here — Render mangles the `&&`, exiting 127.
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -22,3 +22,10 @@ services:
         sync: false # your Vercel URL, e.g. https://ski.vercel.app
       - key: REDIS_URL
         sync: false # Upstash rediss://… (optional — throttle fails open without it)
+      # First-login super_admin, created by the seed migration (idempotent).
+      - key: SEED_ADMIN_NAME
+        value: Sree Kamala Indane
+      - key: SEED_ADMIN_PHONE
+        value: "9440424797"
+      - key: SEED_ADMIN_PASSWORD
+        sync: false # set in the dashboard

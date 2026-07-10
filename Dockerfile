@@ -14,5 +14,7 @@ RUN pip install --upgrade pip && pip install .
 
 EXPOSE 8000
 
-# Liveness probe target: GET /livez. Honour $PORT (Render/Cloud Run inject it); default 8000.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Liveness probe target: GET /livez. Run migrations, then start the server.
+# Honour $PORT (Render/Cloud Run inject it); default 8000. Baked into CMD so the host's
+# own command parsing can't mangle the `&&` (Render's dockerCommand did — status 127).
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
