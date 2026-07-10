@@ -50,6 +50,30 @@ async def test_export_enqueues_job(
     assert got.json()["kind"] == "export"
 
 
+async def test_direct_xlsx_download(client: tuple[AsyncClient, SeededUsers]) -> None:
+    # The synchronous export path used in the cloud deploy — no worker/storage needed.
+    http, _ = client
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    res = await http.get("/v1/day-sheet/2026-01-02/export.xlsx", headers=admin)
+    assert res.status_code == 200
+    assert res.content[:2] == b"PK"  # a real .xlsx (zip)
+    assert "attachment" in res.headers["content-disposition"]
+
+
+async def test_cors_preflight_allows_configured_origin(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    http, _ = client
+    res = await http.options(
+        "/v1/auth/login",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert res.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
 async def _token(http: AsyncClient, phone: str) -> str:
     res = await http.post("/v1/auth/login", json={"phone": phone, "password": TEST_PASSWORD})
     token: str = res.json()["access_token"]

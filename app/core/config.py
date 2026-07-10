@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     login_rate_limit_max: int = 5  # failed attempts per phone within the window
     login_rate_limit_window_seconds: int = 300
 
+    # Deployment (Phase 7-E). Comma-separated web origins allowed by CORS (the web app runs on a
+    # different origin in production).
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     # Observability (Phase 0-D). Sentry is disabled unless a DSN is provided.
     log_level: str = "INFO"
     sentry_dsn: str | None = None
