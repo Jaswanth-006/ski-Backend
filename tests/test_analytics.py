@@ -14,6 +14,7 @@ from app.db.models import (
     Price,
     SaleLine,
     StockLedger,
+    StockLoad,
 )
 from httpx import AsyncClient
 from sqlalchemy import delete, select
@@ -44,6 +45,7 @@ async def _cleanup() -> None:
         ).all()
         for tid in tids:
             await db.execute(delete(StockLedger).where(StockLedger.cylinder_type_id == tid))
+            await db.execute(delete(StockLoad).where(StockLoad.cylinder_type_id == tid))
             await db.execute(delete(SaleLine).where(SaleLine.cylinder_type_id == tid))
             await db.execute(delete(Price).where(Price.cylinder_type_id == tid))
             await db.execute(delete(Inventory).where(Inventory.cylinder_type_id == tid))
@@ -109,5 +111,73 @@ async def test_eod_numbers_and_owner_only_net_profit(
         eod_office = (await http.get(f"/v1/analytics/eod?date={DAY}", headers=office)).json()
         assert eod_office["cylinders_sold"] == 3
         assert eod_office["net_profit"] is None
+    finally:
+        await _cleanup()
+
+
+async def test_collections_trend_and_cylinder_movement(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        type_id = (
+            await http.post(
+                "/v1/cylinder-types", headers=admin, json={"code": TYPE_CODE, "label": "AN"}
+            )
+        ).json()["id"]
+        await http.put(
+            "/v1/prices",
+            headers=admin,
+            json={"cylinder_type_id": type_id, "unit_price": 1000, "effective_date": "2000-01-01"},
+        )
+        await http.post(
+            "/v1/stock/intake",
+            headers=admin,
+            json={"lines": [{"cylinder_type_id": type_id, "qty": 50}]},
+        )
+        # Load 10 out to the driver, then sell 3 (cash 2000 + UPI 1000 = 3000 collected).
+        await http.post(
+            "/v1/stock/loads",
+            headers=admin,
+            json={
+                "business_date": DAY,
+                "delivery_id": str(users.delivery_id),
+                "cylinder_type_id": type_id,
+                "loaded_qty": 10,
+            },
+        )
+        assert (
+            await http.post(
+                "/v1/sales",
+                headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
+                json={
+                    "delivery_id": str(users.delivery_id),
+                    "business_date": DAY,
+                    "lines": [{"cylinder_type_id": type_id, "qty": 3}],
+                    "denominations": [{"note_value": 1000, "note_count": 2}],
+                    "upi_total": 1000,
+                },
+            )
+        ).status_code == 201
+
+        # Collections trend: 7 points, oldest first, the last one is DAY with total 3000.
+        trend = (
+            await http.get(f"/v1/analytics/collections?date={DAY}&days=7", headers=admin)
+        ).json()
+        assert len(trend["points"]) == 7
+        assert trend["points"][-1]["business_date"] == DAY
+        assert float(trend["points"][-1]["total"]) == 3000
+        assert float(trend["points"][0]["total"]) == 0  # a quiet day earlier in the window
+
+        # Cylinder movement: our variety shows loaded 10, sold 3, left 47 (50 intake − 3 sold).
+        movement = (
+            await http.get(f"/v1/analytics/cylinder-movement?date={DAY}", headers=admin)
+        ).json()
+        row = next(r for r in movement["rows"] if r["code"] == TYPE_CODE)
+        assert row["loaded"] == 10
+        assert row["sold"] == 3
+        assert row["left"] == 47
     finally:
         await _cleanup()

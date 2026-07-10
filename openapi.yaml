@@ -957,6 +957,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/analytics/collections:
+    get:
+      tags:
+      - analytics
+      summary: Collections
+      description: Daily cash + UPI collections for the `days`-day window ending on
+        `date` (default today).
+      operationId: collections_v1_analytics_collections_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 7
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionsTrendOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/analytics/cylinder-movement:
+    get:
+      tags:
+      - analytics
+      summary: Cylinder Movement
+      description: Per-type cylinders loaded / sold / left in the warehouse for `date`
+        (default today).
+      operationId: cylinder_movement_v1_analytics_cylinder_movement_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CylinderMovementOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/audit:
     get:
       tags:
@@ -1844,6 +1917,73 @@ components:
       - deposited
       - closing
       title: CashierBoxOut
+    CollectionPoint:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total
+      type: object
+      required:
+      - business_date
+      - total
+      title: CollectionPoint
+    CollectionsTrendOut:
+      properties:
+        points:
+          items:
+            $ref: '#/components/schemas/CollectionPoint'
+          type: array
+          title: Points
+      type: object
+      required:
+      - points
+      title: CollectionsTrendOut
+    CylinderMovementOut:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        rows:
+          items:
+            $ref: '#/components/schemas/CylinderMovementRow'
+          type: array
+          title: Rows
+      type: object
+      required:
+      - business_date
+      - rows
+      title: CylinderMovementOut
+    CylinderMovementRow:
+      properties:
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        loaded:
+          type: integer
+          title: Loaded
+        sold:
+          type: integer
+          title: Sold
+        left:
+          type: integer
+          title: Left
+      type: object
+      required:
+      - code
+      - label
+      - loaded
+      - sold
+      - left
+      title: CylinderMovementRow
     CylinderTypeCreate:
       properties:
         code:

@@ -16,3 +16,25 @@ class EodOut(BaseModel):
     expenses_total: Decimal
     # Owner-only; null for office_admin (margins are hidden).
     net_profit: Decimal | None
+
+
+class CollectionPoint(BaseModel):
+    business_date: dt.date
+    total: Decimal  # cash + UPI collected that day
+
+
+class CollectionsTrendOut(BaseModel):
+    points: list[CollectionPoint]  # oldest first, ending on the requested date
+
+
+class CylinderMovementRow(BaseModel):
+    code: str
+    label: str
+    loaded: int  # cylinders loaded out to drivers that day
+    sold: int  # cylinders sold that day
+    left: int  # warehouse cylinders on hand at end of day
+
+
+class CylinderMovementOut(BaseModel):
+    business_date: dt.date
+    rows: list[CylinderMovementRow]  # one per active cylinder type
