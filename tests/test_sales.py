@@ -267,3 +267,50 @@ async def test_sale_online_mismatch_blocks_office(
         assert res.status_code == 422
     finally:
         await _cleanup()
+
+
+async def test_other_sales_per_boy_applies_to_line_total(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    """A boy's extra ₹/cylinder rides on top of the fixed price and must be settled."""
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        type_id = await _setup(http, admin, qty=50, price=100)
+        # Set boy's extra to ₹20/cyl.
+        put = await http.put(
+            f"/v1/delivery-other-sales/{users.delivery_id}",
+            headers=admin,
+            json={"amount_per_cylinder": 20},
+        )
+        assert put.status_code == 200
+        assert float(put.json()["amount_per_cylinder"]) == 20
+        # It shows in the list.
+        listed = (await http.get("/v1/delivery-other-sales", headers=admin)).json()
+        assert any(
+            r["delivery_id"] == str(users.delivery_id) and float(r["amount_per_cylinder"]) == 20
+            for r in listed
+        )
+
+        # 10 cyl × (100 + 20) = 1200 → must collect 1200.
+        res = await http.post(
+            "/v1/sales",
+            headers={**admin, **_key()},
+            json={
+                "delivery_id": str(users.delivery_id),
+                "business_date": TODAY,
+                "lines": [{"cylinder_type_id": type_id, "qty": 10}],
+                "denominations": [{"note_value": 500, "note_count": 2}],  # cash 1000
+                "upi_total": 200,  # 1000 + 200 = 1200
+            },
+        )
+        assert res.status_code == 201, res.text
+        body = res.json()
+        assert float(body["revenue_total"]) == 1200
+        line = body["lines"][0]
+        assert float(line["unit_price"]) == 100
+        assert float(line["other_sales_per_unit"]) == 20
+        assert float(line["line_total"]) == 1200
+    finally:
+        await _cleanup()

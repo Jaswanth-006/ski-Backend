@@ -27,7 +27,7 @@ from app.db.models import (
     User,
 )
 from app.schemas.sales import SaleCreate, SaleLineOut, SaleOut
-from app.services import audit, pricing
+from app.services import audit, delivery_other_sales, pricing
 
 
 class DayClosed(Exception):
@@ -96,6 +96,9 @@ async def create_and_post_sale(
     db.add(sale)
     await db.flush()  # get sale.id
 
+    # The boy's per-cylinder extra rides on top of the fixed price for every line.
+    boy_extra = await delivery_other_sales.amount_for(db, data.delivery_id)
+
     revenue = Decimal(0)
     for line in data.lines:
         unit_price = await pricing.resolve_unit_price(db, line.cylinder_type_id, data.business_date)
@@ -120,6 +123,7 @@ async def create_and_post_sale(
                 cylinder_type_id=line.cylinder_type_id,
                 qty=line.qty,
                 unit_price=unit_price,
+                other_sales_per_unit=boy_extra,
             )
         )
         # Full goes out, and the customer hands back an empty of the same type.
@@ -145,7 +149,7 @@ async def create_and_post_sale(
                 created_by=actor.id,
             )
         )
-        revenue += unit_price * line.qty
+        revenue += (unit_price + boy_extra) * line.qty
 
     cash_total = Decimal(0)
     for denom in data.denominations:
@@ -206,7 +210,8 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
             label=label,
             qty=sl.qty,
             unit_price=sl.unit_price,
-            line_total=sl.unit_price * sl.qty,
+            other_sales_per_unit=sl.other_sales_per_unit,
+            line_total=(sl.unit_price + sl.other_sales_per_unit) * sl.qty,
         )
         for sl, code, label in line_rows
     ]

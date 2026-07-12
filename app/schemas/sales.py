@@ -33,8 +33,9 @@ class SaleLineOut(BaseModel):
     code: str
     label: str
     qty: int
-    unit_price: Decimal
-    line_total: Decimal
+    unit_price: Decimal  # base cylinder price
+    other_sales_per_unit: Decimal  # per-boy extra on top
+    line_total: Decimal  # (unit_price + other_sales_per_unit) × qty
 
 
 class SaleOut(BaseModel):

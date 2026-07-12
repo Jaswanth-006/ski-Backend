@@ -785,6 +785,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/delivery-other-sales:
+    get:
+      tags:
+      - delivery-other-sales
+      summary: List Delivery Other Sales
+      operationId: list_delivery_other_sales_v1_delivery_other_sales_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DeliveryOtherSalesOut'
+                type: array
+                title: Response List Delivery Other Sales V1 Delivery Other Sales
+                  Get
+      security:
+      - HTTPBearer: []
+  /v1/delivery-other-sales/{delivery_id}:
+    put:
+      tags:
+      - delivery-other-sales
+      summary: Set Delivery Other Sales
+      operationId: set_delivery_other_sales_v1_delivery_other_sales__delivery_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryOtherSalesSet'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryOtherSalesOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/sales:
     post:
       tags:
@@ -2494,6 +2548,38 @@ components:
       - online
       - total
       title: DaySheetTotals
+    DeliveryOtherSalesOut:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        amount_per_cylinder:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount Per Cylinder
+      type: object
+      required:
+      - delivery_id
+      - delivery_name
+      - amount_per_cylinder
+      title: DeliveryOtherSalesOut
+    DeliveryOtherSalesSet:
+      properties:
+        amount_per_cylinder:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount Per Cylinder
+      type: object
+      required:
+      - amount_per_cylinder
+      title: DeliveryOtherSalesSet
     DeliveryReportRow:
       properties:
         delivery_id:
@@ -3210,6 +3296,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Price
+        other_sales_per_unit:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Other Sales Per Unit
         line_total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3221,6 +3311,7 @@ components:
       - label
       - qty
       - unit_price
+      - other_sales_per_unit
       - line_total
       title: SaleLineOut
     SaleOut:
