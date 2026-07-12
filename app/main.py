@@ -18,6 +18,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import banking as banking_routes
 from app.api.routes import cashier_box as cashier_box_routes
 from app.api.routes import catalog as catalog_routes
+from app.api.routes import credits as credits_routes
 from app.api.routes import day_sheet as day_sheet_routes
 from app.api.routes import delivery_other_sales as delivery_other_sales_routes
 from app.api.routes import expenses as expenses_routes
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(stock_routes.router, prefix="/v1")
     app.include_router(accessories_routes.router, prefix="/v1")
     app.include_router(delivery_other_sales_routes.router, prefix="/v1")
+    app.include_router(credits_routes.router, prefix="/v1")
     app.include_router(sales_routes.router, prefix="/v1")
     app.include_router(day_sheet_routes.router, prefix="/v1")
     app.include_router(month_sheet_routes.router, prefix="/v1")

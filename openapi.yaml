@@ -839,6 +839,101 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/credits:
+    get:
+      tags:
+      - credits
+      summary: List Credits
+      operationId: list_credits_v1_credits_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: settled
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Settled
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CreditOut'
+                title: Response List Credits V1 Credits Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - credits
+      summary: Create Credit
+      operationId: create_credit_v1_credits_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/credits/{credit_id}/settle:
+    post:
+      tags:
+      - credits
+      summary: Settle Credit
+      operationId: settle_credit_v1_credits__credit_id__settle_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: credit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Credit Id
+      - name: settled
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Settled
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/sales:
     post:
       tags:
@@ -2255,6 +2350,82 @@ components:
       required:
       - points
       title: CollectionsTrendOut
+    CreditCreate:
+      properties:
+        person_name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Person Name
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        given_date:
+          type: string
+          format: date
+          title: Given Date
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - person_name
+      - amount
+      - given_date
+      title: CreditCreate
+    CreditOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        person_name:
+          type: string
+          title: Person Name
+        amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        given_date:
+          type: string
+          format: date
+          title: Given Date
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        is_settled:
+          type: boolean
+          title: Is Settled
+        settled_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Settled Date
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - person_name
+      - amount
+      - given_date
+      - note
+      - is_settled
+      - settled_date
+      - created_at
+      title: CreditOut
     CylinderMovementOut:
       properties:
         business_date:

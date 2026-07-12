@@ -231,6 +231,29 @@ class SaleLine(Base):
     )
 
 
+class Credit(Base):
+    """Money given to a person, tracked until repaid (receivables ledger)."""
+
+    __tablename__ = "credits"
+    __table_args__ = (CheckConstraint("amount > 0", name="ck_credits_amount_pos"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    person_name: Mapped[str] = mapped_column(Text, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    given_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_settled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    settled_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class DeliveryOtherSales(Base):
     """Per-delivery-boy extra ₹/cylinder on top of the fixed price (owner-managed)."""
 
