@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CashLedger, Expense, ExpenseItem
+from app.db.models import CashLedger, Expense, ExpenseItem, User
 from app.schemas.expenses import ExpenseCreate, ExpenseOut
 from app.services import audit
 
@@ -27,6 +27,7 @@ async def create_expense(
         amount=data.amount,
         method=data.method,
         note=data.note,
+        delivery_id=data.delivery_id,
         created_by=created_by,
     )
     db.add(expense)
@@ -50,6 +51,11 @@ async def create_expense(
     await db.commit()
 
     item_name = await db.scalar(select(ExpenseItem.name).where(ExpenseItem.id == data.item_id))
+    delivery_name = (
+        await db.scalar(select(User.name).where(User.id == data.delivery_id))
+        if data.delivery_id
+        else None
+    )
     return ExpenseOut(
         id=expense.id,
         business_date=expense.business_date,
@@ -58,12 +64,18 @@ async def create_expense(
         amount=expense.amount,
         method=expense.method,
         note=expense.note,
+        delivery_id=expense.delivery_id,
+        delivery_name=delivery_name,
         created_at=expense.created_at,
     )
 
 
 async def list_expenses(db: AsyncSession, on_date: dt.date | None = None) -> list[ExpenseOut]:
-    stmt = select(Expense, ExpenseItem.name).join(ExpenseItem, ExpenseItem.id == Expense.item_id)
+    stmt = (
+        select(Expense, ExpenseItem.name, User.name)
+        .join(ExpenseItem, ExpenseItem.id == Expense.item_id)
+        .join(User, User.id == Expense.delivery_id, isouter=True)
+    )
     if on_date is not None:
         stmt = stmt.where(Expense.business_date == on_date)
     rows = (await db.execute(stmt.order_by(Expense.created_at.desc()))).all()
@@ -76,7 +88,9 @@ async def list_expenses(db: AsyncSession, on_date: dt.date | None = None) -> lis
             amount=e.amount,
             method=e.method,
             note=e.note,
+            delivery_id=e.delivery_id,
+            delivery_name=delivery_name,
             created_at=e.created_at,
         )
-        for e, name in rows
+        for e, name, delivery_name in rows
     ]

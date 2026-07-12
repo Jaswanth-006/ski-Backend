@@ -2501,6 +2501,14 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
+        expense:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expense
+        net:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Net
         denominations:
           items:
             $ref: '#/components/schemas/Denomination'
@@ -2517,6 +2525,8 @@ components:
       - upi
       - online
       - total
+      - expense
+      - net
       - denominations
       title: DaySheetRow
     DaySheetTotals:
@@ -2540,6 +2550,14 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
+        expense:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Expense
+        net:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Net
       type: object
       required:
       - cylinders
@@ -2547,6 +2565,8 @@ components:
       - upi
       - online
       - total
+      - expense
+      - net
       title: DaySheetTotals
     DeliveryOtherSalesOut:
       properties:
@@ -2757,6 +2777,12 @@ components:
             maxLength: 280
           - type: 'null'
           title: Note
+        delivery_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Delivery Id
       type: object
       required:
       - business_date
@@ -2856,6 +2882,17 @@ components:
           - type: string
           - type: 'null'
           title: Note
+        delivery_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Delivery Id
+        delivery_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Delivery Name
         created_at:
           type: string
           format: date-time
@@ -2869,6 +2906,8 @@ components:
       - amount
       - method
       - note
+      - delivery_id
+      - delivery_name
       - created_at
       title: ExpenseOut
     ExpenseReportRow:

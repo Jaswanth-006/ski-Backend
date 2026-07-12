@@ -45,6 +45,11 @@ _AGG_SQL = text(
 
 _EXP_SQL = text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date = :on_date")
 
+_EXP_BY_DRIVER_SQL = text(
+    "SELECT delivery_id, COALESCE(SUM(amount), 0) AS expense FROM expenses "
+    "WHERE business_date = :on_date AND delivery_id IS NOT NULL GROUP BY delivery_id"
+)
+
 _DENOM_SQL = text(
     """
     SELECT s.delivery_id, cd.note_value, SUM(cd.note_count) AS note_count
@@ -86,6 +91,11 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
 
     loads = await stock_loads.loads_by_driver(db, on_date)
 
+    expense_by_driver: dict[uuid.UUID, Decimal] = {
+        row["delivery_id"]: Decimal(row["expense"])
+        for row in (await db.execute(_EXP_BY_DRIVER_SQL, {"on_date": on_date})).mappings().all()
+    }
+
     rows: list[DaySheetRow] = []
     for d in drivers:
         a = agg.get(d["id"])
@@ -93,6 +103,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
         online = Decimal(a["online"]) if a else Decimal(0)
+        expense = expense_by_driver.get(d["id"], Decimal(0))
         notes = denom_by_driver.get(d["id"], {})
         loaded, returned = loads.get(d["id"], (0, 0))
         rows.append(
@@ -106,6 +117,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 upi=upi,
                 online=online,
                 total=cash + upi,
+                expense=expense,
+                net=cash + upi - expense,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
                     for v in sorted(notes, reverse=True)
@@ -128,6 +141,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         upi=sum((r.upi for r in rows), Decimal(0)),
         online=sum((r.online for r in rows), Decimal(0)),
         total=sum((r.total for r in rows), Decimal(0)),
+        expense=sum((r.expense for r in rows), Decimal(0)),
+        net=sum((r.net for r in rows), Decimal(0)),
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
     cashier_opening, cashier_closing = await cashier_box.opening_closing(db, on_date)

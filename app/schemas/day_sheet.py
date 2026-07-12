@@ -23,7 +23,9 @@ class DaySheetRow(BaseModel):
     cash: Decimal
     upi: Decimal
     online: Decimal  # paid direct to the company (not settled by the boy)
-    total: Decimal  # what the boy settles = cash + upi
+    total: Decimal  # cash + upi collected
+    expense: Decimal  # this boy's route expenses for the day
+    net: Decimal  # what he actually hands in = total - expense
     denominations: list[Denomination]  # this driver's note breakdown, high value first
 
 
@@ -41,6 +43,8 @@ class DaySheetTotals(BaseModel):
     upi: Decimal
     online: Decimal
     total: Decimal
+    expense: Decimal  # sum of driver-attributed expenses
+    net: Decimal  # total - expense
 
 
 class DaySheetOut(BaseModel):

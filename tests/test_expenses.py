@@ -84,3 +84,38 @@ async def test_cash_expense_posts_and_lists(client: tuple[AsyncClient, SeededUse
         assert await _expense_ledger_count() == 1
     finally:
         await _cleanup()
+
+
+async def test_expense_attributed_to_delivery_boy_shows_on_day_sheet(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    """A per-boy expense reduces his net hand-in on the day sheet."""
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        item_id = (
+            await http.post("/v1/expense-items", headers=admin, json={"name": ITEM_NAME})
+        ).json()["id"]
+        created = await http.post(
+            "/v1/expenses",
+            headers=admin,
+            json={
+                "business_date": DAY,
+                "item_id": item_id,
+                "amount": AMOUNT,
+                "method": "cash",
+                "delivery_id": str(users.delivery_id),
+            },
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["delivery_id"] == str(users.delivery_id)
+        assert created.json()["delivery_name"] == "Delivery Test"
+
+        sheet = (await http.get(f"/v1/day-sheet/{DAY}", headers=admin)).json()
+        row = next(r for r in sheet["rows"] if r["delivery_id"] == str(users.delivery_id))
+        assert float(row["expense"]) == AMOUNT
+        assert float(row["net"]) == float(row["total"]) - AMOUNT
+        assert float(sheet["totals"]["expense"]) == AMOUNT
+    finally:
+        await _cleanup()
