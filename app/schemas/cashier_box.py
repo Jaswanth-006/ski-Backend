@@ -15,3 +15,7 @@ class CashierBoxOut(BaseModel):
     expenses: Decimal  # expenses on this date
     deposited: Decimal  # box-sourced deposits on this date
     closing: Decimal  # opening + collected − expenses − deposited
+    # Physical hand cash only (excludes UPI): cash collected − cash expenses − deposits.
+    hand_cash_opening: Decimal
+    hand_cash_collected: Decimal
+    hand_cash_closing: Decimal

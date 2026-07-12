@@ -93,22 +93,16 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
             headers=admin,
             json={"cylinder_type_id": type_id, "unit_price": 1000, "effective_date": "2000-01-01"},
         )
+        # ac4: receive 500 full from the plant.
         await http.post(
-            "/v1/stock/intake",
-            headers=admin,
-            json={"business_date": DS, "lines": [{"cylinder_type_id": type_id, "qty": 500}]},
-        )
-        await http.post(
-            "/v1/stock/loads",
+            "/v1/stock/ac4",
             headers=admin,
             json={
                 "business_date": DS,
-                "delivery_id": str(users.delivery_id),
-                "cylinder_type_id": type_id,
-                "loaded_qty": 400,
-                "returned_qty": 100,
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 500}],
             },
         )
+        # Sell 300 (→ 300 empties come back), then send 100 empties to the plant via erv.
         await http.post(
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
@@ -118,6 +112,14 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
                 "lines": [{"cylinder_type_id": type_id, "qty": 300}],
                 "denominations": [],
                 "upi_total": 300000,
+            },
+        )
+        await http.post(
+            "/v1/stock/erv",
+            headers=admin,
+            json={
+                "business_date": DS,
+                "lines": [{"cylinder_type_id": type_id, "qty": 100}],
             },
         )
         item_id = (
@@ -145,19 +147,15 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
         )
 
         stock = next(r for r in await _report(http, admin, "stock") if r["code"] == TYPE_CODE)
-        assert (stock["bought"], stock["sold"], stock["loaded"], stock["returned"]) == (
-            500,
-            300,
-            400,
-            100,
-        )
+        assert (stock["ac4"], stock["erv"]) == (500, 100)
 
         deliv = next(
             r
             for r in await _report(http, admin, "delivery")
             if r["delivery_id"] == str(users.delivery_id)
         )
-        assert (deliv["sold"], deliv["loaded"], deliv["returned"]) == (300, 400, 100)
+        assert float(deliv["sales"]) == 300000  # 300 × 1000
+        assert (deliv["full_cylinders"], deliv["empty_cylinders"]) == (300, 300)
 
         exp = next(r for r in await _report(http, admin, "expenses") if r["item_name"] == ITEM_NAME)
         assert float(exp["total"]) == 200 and exp["count"] == 1

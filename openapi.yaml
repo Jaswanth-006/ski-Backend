@@ -2315,6 +2315,18 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Closing
+        hand_cash_opening:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Hand Cash Opening
+        hand_cash_collected:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Hand Cash Collected
+        hand_cash_closing:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Hand Cash Closing
       type: object
       required:
       - business_date
@@ -2323,6 +2335,9 @@ components:
       - expenses
       - deposited
       - closing
+      - hand_cash_opening
+      - hand_cash_collected
+      - hand_cash_closing
       title: CashierBoxOut
     CollectionPoint:
       properties:
@@ -2780,22 +2795,23 @@ components:
         delivery_name:
           type: string
           title: Delivery Name
-        sold:
+        sales:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Sales
+        full_cylinders:
           type: integer
-          title: Sold
-        loaded:
+          title: Full Cylinders
+        empty_cylinders:
           type: integer
-          title: Loaded
-        returned:
-          type: integer
-          title: Returned
+          title: Empty Cylinders
       type: object
       required:
       - delivery_id
       - delivery_name
-      - sold
-      - loaded
-      - returned
+      - sales
+      - full_cylinders
+      - empty_cylinders
       title: DeliveryReportRow
     Denomination:
       properties:
@@ -3236,6 +3252,9 @@ components:
         cylinders:
           type: integer
           title: Cylinders
+        empty_returned:
+          type: integer
+          title: Empty Returned
         cash:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3244,6 +3263,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
+        online:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online
         total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3256,6 +3279,11 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
+        denominations:
+          items:
+            $ref: '#/components/schemas/Denomination'
+          type: array
+          title: Denominations
         is_closed:
           type: boolean
           title: Is Closed
@@ -3263,11 +3291,14 @@ components:
       required:
       - business_date
       - cylinders
+      - empty_returned
       - cash
       - upi
+      - online
       - total
       - expenses
       - net
+      - denominations
       - is_closed
       title: MonthSheetDay
     MonthSheetOut:
@@ -3297,6 +3328,9 @@ components:
         cylinders:
           type: integer
           title: Cylinders
+        empty_returned:
+          type: integer
+          title: Empty Returned
         cash:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3305,6 +3339,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
+        online:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online
         total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3320,8 +3358,10 @@ components:
       type: object
       required:
       - cylinders
+      - empty_returned
       - cash
       - upi
+      - online
       - total
       - expenses
       - net
@@ -3730,27 +3770,19 @@ components:
         label:
           type: string
           title: Label
-        bought:
+        ac4:
           type: integer
-          title: Bought
-        sold:
+          title: Ac4
+        erv:
           type: integer
-          title: Sold
-        loaded:
-          type: integer
-          title: Loaded
-        returned:
-          type: integer
-          title: Returned
+          title: Erv
       type: object
       required:
       - cylinder_type_id
       - code
       - label
-      - bought
-      - sold
-      - loaded
-      - returned
+      - ac4
+      - erv
       title: StockReportRow
     StockSummary:
       properties:

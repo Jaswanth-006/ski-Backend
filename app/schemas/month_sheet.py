@@ -7,22 +7,29 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
+from app.schemas.day_sheet import Denomination
+
 
 class MonthSheetDay(BaseModel):
     business_date: dt.date
-    cylinders: int
-    cash: Decimal
+    cylinders: int  # full cylinders sold (= stock sold)
+    empty_returned: int  # empties sent back to the plant (erv) that day
+    cash: Decimal  # hand cash collected
     upi: Decimal
-    total: Decimal
+    online: Decimal  # paid direct to the company
+    total: Decimal  # cash + upi
     expenses: Decimal
     net: Decimal  # total − expenses
+    denominations: list[Denomination]  # hand-cash note breakdown, high value first
     is_closed: bool
 
 
 class MonthSheetTotals(BaseModel):
     cylinders: int
+    empty_returned: int
     cash: Decimal
     upi: Decimal
+    online: Decimal
     total: Decimal
     expenses: Decimal
     net: Decimal
