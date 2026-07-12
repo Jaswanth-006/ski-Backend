@@ -73,7 +73,9 @@ async def _purge_users(session: AsyncSession, ids: Sequence[uuid.UUID]) -> None:
     await session.execute(delete(StockLedger).where(StockLedger.created_by.in_(ids)))
     await session.execute(delete(Price).where(Price.created_by.in_(ids)))
     await session.execute(delete(Transfer).where(Transfer.created_by.in_(ids)))
-    await session.execute(delete(Expense).where(Expense.created_by.in_(ids)))
+    await session.execute(
+        delete(Expense).where(or_(Expense.created_by.in_(ids), Expense.delivery_id.in_(ids)))
+    )
     await session.execute(delete(ExpenseItem).where(ExpenseItem.created_by.in_(ids)))
     await session.execute(delete(DaySheetStatus).where(DaySheetStatus.closed_by.in_(ids)))
     await session.execute(delete(AuditLog).where(AuditLog.actor_id.in_(ids)))

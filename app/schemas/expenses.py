@@ -15,6 +15,7 @@ class ExpenseCreate(BaseModel):
     amount: Decimal = Field(gt=0)
     method: str
     note: str | None = Field(default=None, max_length=280)
+    delivery_id: uuid.UUID | None = None  # attribute this expense to a delivery boy
 
     @field_validator("method")
     @classmethod
@@ -32,4 +33,6 @@ class ExpenseOut(BaseModel):
     amount: Decimal
     method: str
     note: str | None
+    delivery_id: uuid.UUID | None
+    delivery_name: str | None
     created_at: dt.datetime
