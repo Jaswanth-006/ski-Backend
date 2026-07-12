@@ -2439,6 +2439,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
+        online:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online
         total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -2457,6 +2461,7 @@ components:
       - returned
       - cash
       - upi
+      - online
       - total
       - denominations
       title: DaySheetRow
@@ -2473,6 +2478,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
+        online:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online
         total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -2482,6 +2491,7 @@ components:
       - cylinders
       - cash
       - upi
+      - online
       - total
       title: DaySheetTotals
     DeliveryReportRow:
@@ -2577,6 +2587,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
+        online_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online Total
         expenses_total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -2593,6 +2607,7 @@ components:
       - cylinders_sold
       - gross_cash
       - upi_total
+      - online_total
       - expenses_total
       - net_profit
       title: EodOut
@@ -3147,6 +3162,14 @@ components:
             pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
           default: '0'
+        online_total:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online Total
+          default: '0'
       type: object
       required:
       - delivery_id
@@ -3240,10 +3263,18 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
+        online_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Online Total
         revenue_total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Revenue Total
+        settled_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Settled Total
       type: object
       required:
       - id
@@ -3256,7 +3287,9 @@ components:
       - lines
       - cash_total
       - upi_total
+      - online_total
       - revenue_total
+      - settled_total
       title: SaleOut
     StockIntake:
       properties:

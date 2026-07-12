@@ -22,7 +22,8 @@ class DaySheetRow(BaseModel):
     returned: int  # cylinders brought back
     cash: Decimal
     upi: Decimal
-    total: Decimal
+    online: Decimal  # paid direct to the company (not settled by the boy)
+    total: Decimal  # what the boy settles = cash + upi
     denominations: list[Denomination]  # this driver's note breakdown, high value first
 
 
@@ -38,6 +39,7 @@ class DaySheetTotals(BaseModel):
     cylinders: int
     cash: Decimal
     upi: Decimal
+    online: Decimal
     total: Decimal
 
 

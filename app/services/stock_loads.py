@@ -96,7 +96,10 @@ async def list_loads(db: AsyncSession, on_date: dt.date) -> list[StockLoadOut]:
     ]
 
 
-_WAREHOUSE = text("SELECT COALESCE(SUM(delta), 0) FROM stock_ledger WHERE business_date <= :bound")
+_WAREHOUSE = text(
+    "SELECT COALESCE(SUM(delta), 0) FROM stock_ledger "
+    "WHERE business_date <= :bound AND condition = 'full'"
+)
 _INTAKE_ON = text(
     "SELECT COALESCE(SUM(delta), 0) FROM stock_ledger "
     "WHERE business_date = :d AND reason = 'intake'"

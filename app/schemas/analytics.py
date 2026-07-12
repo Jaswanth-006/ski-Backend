@@ -13,6 +13,7 @@ class EodOut(BaseModel):
     cylinders_sold: int
     gross_cash: Decimal
     upi_total: Decimal
+    online_total: Decimal  # paid direct to the company
     expenses_total: Decimal
     # Owner-only; null for office_admin (margins are hidden).
     net_profit: Decimal | None

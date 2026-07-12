@@ -25,6 +25,7 @@ class SaleCreate(BaseModel):
     lines: list[SaleLineIn] = Field(min_length=1)
     denominations: list[DenominationIn] = Field(default_factory=list)
     upi_total: Decimal = Field(ge=0, default=Decimal(0))
+    online_total: Decimal = Field(ge=0, default=Decimal(0))  # paid direct to the company
 
 
 class SaleLineOut(BaseModel):
@@ -47,4 +48,6 @@ class SaleOut(BaseModel):
     lines: list[SaleLineOut]
     cash_total: Decimal
     upi_total: Decimal
+    online_total: Decimal
     revenue_total: Decimal
+    settled_total: Decimal  # what the delivery boy hands in = cash + upi
