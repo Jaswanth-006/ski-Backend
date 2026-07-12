@@ -226,6 +226,22 @@ class SaleLine(Base):
     )
     qty: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    other_sales_per_unit: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, server_default=text("0")
+    )
+
+
+class DeliveryOtherSales(Base):
+    """Per-delivery-boy extra ₹/cylinder on top of the fixed price (owner-managed)."""
+
+    __tablename__ = "delivery_other_sales"
+
+    delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
+    amount_per_cylinder: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, server_default=text("0")
+    )
 
 
 class CashDenomination(Base):

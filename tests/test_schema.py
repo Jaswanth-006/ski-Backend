@@ -27,6 +27,7 @@ EXPECTED_TABLES = {
     "transfers",  # added in Phase 8-C
     "stock_loads",  # added in Phase 8-D
     "accessories",  # added in stock v2
+    "delivery_other_sales",  # added in Phase C
 }
 
 
