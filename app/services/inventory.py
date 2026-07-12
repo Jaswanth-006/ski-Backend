@@ -63,6 +63,7 @@ async def record_intake(
             db.add(
                 StockLedger(
                     cylinder_type_id=line.cylinder_type_id,
+                    condition="full",
                     delta=line.qty,
                     reason="intake",
                     business_date=bd,
@@ -107,6 +108,7 @@ async def adjust_inventory(
     db.add(
         StockLedger(
             cylinder_type_id=cylinder_type_id,
+            condition="full",
             delta=delta,
             reason="adjust",
             created_by=created_by,

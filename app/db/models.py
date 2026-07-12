@@ -83,6 +83,18 @@ class CylinderType(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
 
+class Accessory(Base):
+    """Stocked non-cylinder item (stove, pipe, wire, regulator …). Stock v2."""
+
+    __tablename__ = "accessories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
 class Price(Base):
     __tablename__ = "prices"
     __table_args__ = (
@@ -124,15 +136,28 @@ class StockLedger(Base):
     __tablename__ = "stock_ledger"
     __table_args__ = (
         CheckConstraint(
-            "reason IN ('intake','sale','reversal','adjust')", name="ck_stock_ledger_reason"
+            "reason IN ('intake','ac4','erv','sale','reversal','adjust')",
+            name="ck_stock_ledger_reason",
+        ),
+        CheckConstraint(
+            "(cylinder_type_id IS NOT NULL AND accessory_id IS NULL "
+            "AND condition IN ('full','empty')) "
+            "OR (cylinder_type_id IS NULL AND accessory_id IS NOT NULL AND condition IS NULL)",
+            name="ck_stock_ledger_item",
         ),
         Index("idx_stock_ledger_type", "cylinder_type_id", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    cylinder_type_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
+    cylinder_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=True
     )
+    accessory_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("accessories.id"), nullable=True
+    )
+    condition: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # 'full'|'empty' for cylinders
     delta: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     business_date: Mapped[dt.date] = mapped_column(

@@ -119,6 +119,7 @@ async def create_and_post_sale(
         db.add(
             StockLedger(
                 cylinder_type_id=line.cylinder_type_id,
+                condition="full",
                 delta=-line.qty,
                 reason="sale",
                 business_date=data.business_date,

@@ -12,11 +12,62 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
+from app.schemas.stock import Ac4Request, ErvRequest, StockOverview
 from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
 from app.services import inventory as inventory_service
+from app.services import stock as stock_service
 from app.services import stock_loads as stock_loads_service
 
 router = APIRouter(tags=["stock"])
+
+
+@router.get("/stock/overview", response_model=StockOverview)
+async def stock_overview(
+    date: dt.date | None = None,
+    _: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StockOverview:
+    """Per-day full/empty cylinder + accessory opening, movement, and closing."""
+    return await stock_service.overview(db, date or dt.date.today())
+
+
+@router.post("/stock/ac4", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
+async def stock_ac4(
+    body: Ac4Request,
+    current_user: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StockOverview:
+    """ac4 — stock received from the plant (full cylinders + accessories)."""
+    try:
+        await stock_service.record_ac4(
+            db,
+            cylinders=body.cylinders,
+            accessories=body.accessories,
+            created_by=current_user.id,
+            business_date=body.business_date,
+        )
+    except stock_service.InvalidReference as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await stock_service.overview(db, body.business_date or dt.date.today())
+
+
+@router.post("/stock/erv", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
+async def stock_erv(
+    body: ErvRequest,
+    current_user: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StockOverview:
+    """erv — empty cylinders returned to the plant."""
+    try:
+        await stock_service.record_erv(
+            db,
+            lines=body.lines,
+            created_by=current_user.id,
+            business_date=body.business_date,
+        )
+    except stock_service.InvalidReference as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await stock_service.overview(db, body.business_date or dt.date.today())
 
 
 @router.get("/inventory", response_model=list[InventoryOut])
