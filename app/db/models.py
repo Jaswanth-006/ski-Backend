@@ -178,6 +178,7 @@ class Sale(Base):
     __table_args__ = (
         CheckConstraint("status IN ('pending','approved','rejected')", name="ck_sales_status"),
         CheckConstraint("upi_total >= 0", name="ck_sales_upi_nonneg"),
+        CheckConstraint("online_total >= 0", name="ck_sales_online_nonneg"),
         CheckConstraint("submitted_via IN ('mobile','web')", name="ck_sales_submitted_via"),
         Index("idx_sales_date_delivery", "business_date", "delivery_id"),
         Index("idx_sales_status", "status", postgresql_where=text("status = 'pending'")),
@@ -195,6 +196,9 @@ class Sale(Base):
     business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
     upi_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, server_default=text("0")
+    )
+    online_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, server_default=text("0")
     )
     submitted_via: Mapped[str] = mapped_column(
@@ -243,7 +247,9 @@ class CashDenomination(Base):
 class CashLedger(Base):
     __tablename__ = "cash_ledger"
     __table_args__ = (
-        CheckConstraint("kind IN ('cash','upi','expense','reversal')", name="ck_cash_ledger_kind"),
+        CheckConstraint(
+            "kind IN ('cash','upi','online','expense','reversal')", name="ck_cash_ledger_kind"
+        ),
         Index("idx_cash_ledger_date", "created_at"),
     )
 

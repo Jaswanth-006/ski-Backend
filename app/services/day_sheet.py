@@ -35,7 +35,8 @@ _AGG_SQL = text(
            SUM(COALESCE((SELECT SUM(qty) FROM sale_lines WHERE sale_id = s.id), 0)) AS cylinders,
            SUM(COALESCE((SELECT SUM(amount) FROM cash_ledger
                          WHERE sale_id = s.id AND kind = 'cash'), 0))               AS cash,
-           SUM(s.upi_total)                                                          AS upi
+           SUM(s.upi_total)                                                          AS upi,
+           SUM(s.online_total)                                                       AS online
     FROM sales s
     WHERE s.business_date = :on_date AND s.status = 'approved'
     GROUP BY s.delivery_id
@@ -91,6 +92,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         cylinders = int(a["cylinders"]) if a else 0
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
+        online = Decimal(a["online"]) if a else Decimal(0)
         notes = denom_by_driver.get(d["id"], {})
         loaded, returned = loads.get(d["id"], (0, 0))
         rows.append(
@@ -102,6 +104,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 returned=returned,
                 cash=cash,
                 upi=upi,
+                online=online,
                 total=cash + upi,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
@@ -123,6 +126,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         cylinders=sum(r.cylinders for r in rows),
         cash=sum((r.cash for r in rows), Decimal(0)),
         upi=sum((r.upi for r in rows), Decimal(0)),
+        online=sum((r.online for r in rows), Decimal(0)),
         total=sum((r.total for r in rows), Decimal(0)),
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)

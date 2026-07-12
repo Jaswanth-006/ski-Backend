@@ -19,10 +19,10 @@ _STOCK = text(
     """
     SELECT ct.id AS cylinder_type_id, ct.code, ct.label,
       COALESCE((SELECT SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'intake'
+                WHERE cylinder_type_id = ct.id AND reason = 'intake' AND condition = 'full'
                   AND business_date BETWEEN :start AND :end), 0) AS bought,
       COALESCE((SELECT -SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'sale'
+                WHERE cylinder_type_id = ct.id AND reason = 'sale' AND condition = 'full'
                   AND business_date BETWEEN :start AND :end), 0) AS sold,
       COALESCE((SELECT SUM(loaded_qty) FROM stock_loads
                 WHERE cylinder_type_id = ct.id

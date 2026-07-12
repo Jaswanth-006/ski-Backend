@@ -51,14 +51,19 @@ class ReconciliationFailed(Exception):
         super().__init__("; ".join(flags))
 
 
-def reconcile(revenue: Decimal, cash_total: Decimal, upi_total: Decimal) -> list[str]:
-    """Revenue tally: Σ(qty × unit_price) must equal cash + UPI (01-BACKEND-PRD §7)."""
+def reconcile(
+    revenue: Decimal, cash_total: Decimal, upi_total: Decimal, online_total: Decimal
+) -> list[str]:
+    """Revenue tally: Σ(qty × unit_price) == cash + UPI + online (01-BACKEND-PRD §7).
+
+    Online is money paid straight to the company; the boy only settles cash + upi.
+    """
     flags: list[str] = []
-    collected = cash_total + upi_total
+    collected = cash_total + upi_total + online_total
     if collected != revenue:
         flags.append(
             f"revenue mismatch: sold {revenue} but collected {collected} "
-            f"(cash {cash_total} + upi {upi_total})"
+            f"(cash {cash_total} + upi {upi_total} + online {online_total})"
         )
     return flags
 
@@ -85,6 +90,7 @@ async def create_and_post_sale(
         business_date=data.business_date,
         status="pending",
         upi_total=data.upi_total,
+        online_total=data.online_total,
         submitted_via="web",
     )
     db.add(sale)
@@ -116,11 +122,23 @@ async def create_and_post_sale(
                 unit_price=unit_price,
             )
         )
+        # Full goes out, and the customer hands back an empty of the same type.
         db.add(
             StockLedger(
                 cylinder_type_id=line.cylinder_type_id,
                 condition="full",
                 delta=-line.qty,
+                reason="sale",
+                business_date=data.business_date,
+                ref_id=sale.id,
+                created_by=actor.id,
+            )
+        )
+        db.add(
+            StockLedger(
+                cylinder_type_id=line.cylinder_type_id,
+                condition="empty",
+                delta=line.qty,
                 reason="sale",
                 business_date=data.business_date,
                 ref_id=sale.id,
@@ -138,12 +156,14 @@ async def create_and_post_sale(
         )
         cash_total += Decimal(denom.note_value * denom.note_count)
 
-    flags = reconcile(revenue, cash_total, data.upi_total)
+    flags = reconcile(revenue, cash_total, data.upi_total, data.online_total)
     if flags and actor.role != "super_admin":
         raise ReconciliationFailed(flags)
 
     db.add(CashLedger(sale_id=sale.id, amount=cash_total, kind="cash"))
     db.add(CashLedger(sale_id=sale.id, amount=data.upi_total, kind="upi"))
+    if data.online_total:
+        db.add(CashLedger(sale_id=sale.id, amount=data.online_total, kind="online"))
 
     sale.status = "approved"
     sale.approved_by = actor.id
@@ -161,6 +181,7 @@ async def create_and_post_sale(
             "revenue": str(revenue),
             "cash": str(cash_total),
             "upi": str(data.upi_total),
+            "online": str(data.online_total),
             "override": bool(flags),
         },
     )
@@ -208,7 +229,9 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         lines=lines,
         cash_total=cash_total,
         upi_total=sale.upi_total,
+        online_total=sale.online_total,
         revenue_total=revenue_total,
+        settled_total=cash_total + sale.upi_total,
     )
 
 
