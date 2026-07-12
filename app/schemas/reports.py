@@ -12,18 +12,16 @@ class StockReportRow(BaseModel):
     cylinder_type_id: uuid.UUID
     code: str
     label: str
-    bought: int  # intake
-    sold: int
-    loaded: int
-    returned: int
+    ac4: int  # full cylinders received from the plant
+    erv: int  # empty cylinders returned to the plant
 
 
 class DeliveryReportRow(BaseModel):
     delivery_id: uuid.UUID
     delivery_name: str
-    sold: int
-    loaded: int
-    returned: int
+    sales: Decimal  # revenue collected (incl. per-boy other sales)
+    full_cylinders: int  # full sold
+    empty_cylinders: int  # empties collected back
 
 
 class ExpenseReportRow(BaseModel):

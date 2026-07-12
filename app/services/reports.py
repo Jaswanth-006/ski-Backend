@@ -19,17 +19,11 @@ _STOCK = text(
     """
     SELECT ct.id AS cylinder_type_id, ct.code, ct.label,
       COALESCE((SELECT SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'intake' AND condition = 'full'
-                  AND business_date BETWEEN :start AND :end), 0) AS bought,
+                WHERE cylinder_type_id = ct.id AND reason = 'ac4' AND condition = 'full'
+                  AND business_date BETWEEN :start AND :end), 0) AS ac4,
       COALESCE((SELECT -SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'sale' AND condition = 'full'
-                  AND business_date BETWEEN :start AND :end), 0) AS sold,
-      COALESCE((SELECT SUM(loaded_qty) FROM stock_loads
-                WHERE cylinder_type_id = ct.id
-                  AND business_date BETWEEN :start AND :end), 0) AS loaded,
-      COALESCE((SELECT SUM(returned_qty) FROM stock_loads
-                WHERE cylinder_type_id = ct.id
-                  AND business_date BETWEEN :start AND :end), 0) AS returned
+                WHERE cylinder_type_id = ct.id AND reason = 'erv' AND condition = 'empty'
+                  AND business_date BETWEEN :start AND :end), 0) AS erv
     FROM cylinder_types ct
     ORDER BY ct.code
     """
@@ -38,13 +32,16 @@ _STOCK = text(
 _DELIVERY = text(
     """
     SELECT u.id AS delivery_id, u.name AS delivery_name,
+      COALESCE((SELECT SUM((sl.unit_price + sl.other_sales_per_unit) * sl.qty)
+                FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
+                WHERE s.delivery_id = u.id AND s.status = 'approved'
+                  AND s.business_date BETWEEN :start AND :end), 0) AS sales,
       COALESCE((SELECT SUM(sl.qty) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
                 WHERE s.delivery_id = u.id AND s.status = 'approved'
-                  AND s.business_date BETWEEN :start AND :end), 0) AS sold,
-      COALESCE((SELECT SUM(loaded_qty) FROM stock_loads
-                WHERE delivery_id = u.id AND business_date BETWEEN :start AND :end), 0) AS loaded,
-      COALESCE((SELECT SUM(returned_qty) FROM stock_loads
-                WHERE delivery_id = u.id AND business_date BETWEEN :start AND :end), 0) AS returned
+                  AND s.business_date BETWEEN :start AND :end), 0) AS full_cylinders,
+      COALESCE((SELECT SUM(sl.qty) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
+                WHERE s.delivery_id = u.id AND s.status = 'approved'
+                  AND s.business_date BETWEEN :start AND :end), 0) AS empty_cylinders
     FROM users u WHERE u.role = 'delivery' ORDER BY u.name
     """
 )
@@ -81,13 +78,11 @@ async def stock_report(db: AsyncSession, start: dt.date, end: dt.date) -> list[S
     rows = (await db.execute(_STOCK, {"start": start, "end": end})).mappings().all()
     return [
         StockReportRow(
-            **{
-                **r,
-                "bought": int(r["bought"]),
-                "sold": int(r["sold"]),
-                "loaded": int(r["loaded"]),
-                "returned": int(r["returned"]),
-            }
+            cylinder_type_id=r["cylinder_type_id"],
+            code=r["code"],
+            label=r["label"],
+            ac4=int(r["ac4"]),
+            erv=int(r["erv"]),
         )
         for r in rows
     ]
@@ -101,9 +96,9 @@ async def delivery_report(
         DeliveryReportRow(
             delivery_id=r["delivery_id"],
             delivery_name=r["delivery_name"],
-            sold=int(r["sold"]),
-            loaded=int(r["loaded"]),
-            returned=int(r["returned"]),
+            sales=Decimal(r["sales"]),
+            full_cylinders=int(r["full_cylinders"]),
+            empty_cylinders=int(r["empty_cylinders"]),
         )
         for r in rows
     ]

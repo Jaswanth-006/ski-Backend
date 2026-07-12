@@ -26,6 +26,15 @@ _DEPOSITS = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
     "WHERE source_kind = 'cashier_box' AND business_date <= :bound"
 )
+# Hand cash only — physical notes: cash collected, cash-method expenses, box deposits out.
+_CASH_ONLY = text(
+    "SELECT COALESCE(SUM(cl.amount), 0) FROM cash_ledger cl JOIN sales s ON s.id = cl.sale_id "
+    "WHERE cl.kind = 'cash' AND s.status = 'approved' AND s.business_date <= :bound"
+)
+_CASH_EXPENSES = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+    "WHERE method = 'cash' AND business_date <= :bound"
+)
 
 
 async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
@@ -34,11 +43,15 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
     collected = Decimal(await db.scalar(_COLLECTED, params) or 0)
     expenses = Decimal(await db.scalar(_EXPENSES, params) or 0)
     deposits = Decimal(await db.scalar(_DEPOSITS, params) or 0)
+    cash_collected = Decimal(await db.scalar(_CASH_ONLY, params) or 0)
+    cash_expenses = Decimal(await db.scalar(_CASH_EXPENSES, params) or 0)
     return {
         "collected": collected,
         "expenses": expenses,
         "deposits": deposits,
         "closing": collected - expenses - deposits,
+        "cash_collected": cash_collected,
+        "hand_cash_closing": cash_collected - cash_expenses - deposits,
     }
 
 
@@ -52,6 +65,9 @@ async def cashier_box(db: AsyncSession, on_date: dt.date) -> CashierBoxOut:
         expenses=cur["expenses"] - prev["expenses"],
         deposited=cur["deposits"] - prev["deposits"],
         closing=cur["closing"],
+        hand_cash_opening=prev["hand_cash_closing"],
+        hand_cash_collected=cur["cash_collected"] - prev["cash_collected"],
+        hand_cash_closing=cur["hand_cash_closing"],
     )
 
 

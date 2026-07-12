@@ -102,6 +102,8 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
         )
         d1 = await _box(http, admin, D1)
         assert d1["opening"] == 0 and d1["collected"] == 2000 and d1["closing"] == 2000
+        # All-cash sale → hand cash equals the closing balance.
+        assert d1["hand_cash_closing"] == 2000
 
         # Day 2: opening carries the 2000. Sell 1 (1000), deposit 500 from the box.
         await http.post(
@@ -132,5 +134,6 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
         assert d2["collected"] == 1000
         assert d2["deposited"] == 500
         assert d2["closing"] == 2500  # 2000 + 1000 − 500
+        assert d2["hand_cash_closing"] == 2500  # all cash: 2000 + 1000 − 500 deposit
     finally:
         await _cleanup()
