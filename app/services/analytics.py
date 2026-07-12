@@ -102,7 +102,7 @@ _MOVEMENT = text(
     ") so ON so.cylinder_type_id = ct.id "
     "LEFT JOIN ("
     "  SELECT cylinder_type_id, SUM(delta) AS on_hand FROM stock_ledger "
-    "  WHERE business_date <= :d GROUP BY cylinder_type_id"
+    "  WHERE business_date <= :d AND condition = 'full' GROUP BY cylinder_type_id"
     ") oh ON oh.cylinder_type_id = ct.id "
     "WHERE ct.is_active = TRUE "
     "ORDER BY ct.label"

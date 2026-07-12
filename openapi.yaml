@@ -485,6 +485,95 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /v1/stock/overview:
+    get:
+      tags:
+      - stock
+      summary: Stock Overview
+      description: Per-day full/empty cylinder + accessory opening, movement, and
+        closing.
+      operationId: stock_overview_v1_stock_overview_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockOverview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/stock/ac4:
+    post:
+      tags:
+      - stock
+      summary: Stock Ac4
+      description: ac4 — stock received from the plant (full cylinders + accessories).
+      operationId: stock_ac4_v1_stock_ac4_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Ac4Request'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockOverview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /v1/stock/erv:
+    post:
+      tags:
+      - stock
+      summary: Stock Erv
+      description: erv — empty cylinders returned to the plant.
+      operationId: stock_erv_v1_stock_erv_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErvRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockOverview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /v1/inventory:
     get:
       tags:
@@ -632,6 +721,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InventoryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/accessories:
+    get:
+      tags:
+      - accessories
+      summary: List Accessories
+      operationId: list_accessories_v1_accessories_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Active Only
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessoryOut'
+                title: Response List Accessories V1 Accessories Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - accessories
+      summary: Create Accessory
+      operationId: create_accessory_v1_accessories_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessoryCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessoryOut'
         '422':
           description: Validation Error
           content:
@@ -1700,6 +1847,117 @@ paths:
                 title: Response Root  Get
 components:
   schemas:
+    Ac4AccessoryLine:
+      properties:
+        accessory_id:
+          type: string
+          format: uuid
+          title: Accessory Id
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+      type: object
+      required:
+      - accessory_id
+      - qty
+      title: Ac4AccessoryLine
+    Ac4CylinderLine:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+      type: object
+      required:
+      - cylinder_type_id
+      - qty
+      title: Ac4CylinderLine
+    Ac4Request:
+      properties:
+        business_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Business Date
+        cylinders:
+          items:
+            $ref: '#/components/schemas/Ac4CylinderLine'
+          type: array
+          title: Cylinders
+        accessories:
+          items:
+            $ref: '#/components/schemas/Ac4AccessoryLine'
+          type: array
+          title: Accessories
+      type: object
+      title: Ac4Request
+      description: 'Stock received from the plant: full cylinders and/or accessories
+        added to stock.'
+    AccessoryCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: AccessoryCreate
+    AccessoryOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - name
+      - is_active
+      title: AccessoryOut
+    AccessoryStockRow:
+      properties:
+        accessory_id:
+          type: string
+          format: uuid
+          title: Accessory Id
+        name:
+          type: string
+          title: Name
+        opening:
+          type: integer
+          title: Opening
+        received:
+          type: integer
+          title: Received
+        sold:
+          type: integer
+          title: Sold
+        closing:
+          type: integer
+          title: Closing
+      type: object
+      required:
+      - accessory_id
+      - name
+      - opening
+      - received
+      - sold
+      - closing
+      title: AccessoryStockRow
     AuditOut:
       properties:
         id:
@@ -1984,6 +2242,56 @@ components:
       - sold
       - left
       title: CylinderMovementRow
+    CylinderStockRow:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        code:
+          type: string
+          title: Code
+        label:
+          type: string
+          title: Label
+        full_opening:
+          type: integer
+          title: Full Opening
+        full_received:
+          type: integer
+          title: Full Received
+        full_sold:
+          type: integer
+          title: Full Sold
+        full_closing:
+          type: integer
+          title: Full Closing
+        empty_opening:
+          type: integer
+          title: Empty Opening
+        empty_returned_by_customers:
+          type: integer
+          title: Empty Returned By Customers
+        empty_sent_to_plant:
+          type: integer
+          title: Empty Sent To Plant
+        empty_closing:
+          type: integer
+          title: Empty Closing
+      type: object
+      required:
+      - cylinder_type_id
+      - code
+      - label
+      - full_opening
+      - full_received
+      - full_sold
+      - full_closing
+      - empty_opening
+      - empty_returned_by_customers
+      - empty_sent_to_plant
+      - empty_closing
+      title: CylinderStockRow
     CylinderTypeCreate:
       properties:
         code:
@@ -2288,6 +2596,40 @@ components:
       - expenses_total
       - net_profit
       title: EodOut
+    ErvLine:
+      properties:
+        cylinder_type_id:
+          type: string
+          format: uuid
+          title: Cylinder Type Id
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+      type: object
+      required:
+      - cylinder_type_id
+      - qty
+      title: ErvLine
+    ErvRequest:
+      properties:
+        business_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Business Date
+        lines:
+          items:
+            $ref: '#/components/schemas/ErvLine'
+          type: array
+          minItems: 1
+          title: Lines
+      type: object
+      required:
+      - lines
+      title: ErvRequest
+      description: 'Empty cylinders returned to the plant: reduces empty stock.'
     ExpenseCreate:
       properties:
         business_date:
@@ -3020,6 +3362,28 @@ components:
       - cylinder_type_id
       - loaded_qty
       title: StockLoadUpsert
+    StockOverview:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        cylinders:
+          items:
+            $ref: '#/components/schemas/CylinderStockRow'
+          type: array
+          title: Cylinders
+        accessories:
+          items:
+            $ref: '#/components/schemas/AccessoryStockRow'
+          type: array
+          title: Accessories
+      type: object
+      required:
+      - business_date
+      - cylinders
+      - accessories
+      title: StockOverview
     StockReportRow:
       properties:
         cylinder_type_id:

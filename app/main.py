@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.middleware import RequestContextMiddleware
+from app.api.routes import accessories as accessories_routes
 from app.api.routes import analytics as analytics_routes
 from app.api.routes import audit as audit_routes
 from app.api.routes import auth as auth_routes
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog_routes.router, prefix="/v1")
     app.include_router(pricing_routes.router, prefix="/v1")
     app.include_router(stock_routes.router, prefix="/v1")
+    app.include_router(accessories_routes.router, prefix="/v1")
     app.include_router(sales_routes.router, prefix="/v1")
     app.include_router(day_sheet_routes.router, prefix="/v1")
     app.include_router(month_sheet_routes.router, prefix="/v1")
