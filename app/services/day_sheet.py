@@ -22,7 +22,7 @@ from app.schemas.day_sheet import (
     Denomination,
     StockSummary,
 )
-from app.services import audit, cashier_box, stock_loads
+from app.services import audit, cashier_box, delivery_balances, stock_loads
 
 
 class DayAlreadyClosed(Exception):
@@ -107,6 +107,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         row["delivery_id"]: Decimal(row["expense"])
         for row in (await db.execute(_EXP_BY_DRIVER_SQL, {"on_date": on_date})).mappings().all()
     }
+    balance_by_driver = await delivery_balances.charges_on(db, on_date)
 
     rows: list[DaySheetRow] = []
     for d in drivers:
@@ -116,6 +117,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         upi = Decimal(a["upi"]) if a else Decimal(0)
         online = Decimal(a["online"]) if a else Decimal(0)
         expense = expense_by_driver.get(d["id"], Decimal(0))
+        balance = balance_by_driver.get(d["id"], Decimal(0))
+        net = cash + upi - expense
         notes = denom_by_driver.get(d["id"], {})
         loaded, returned = loads.get(d["id"], (0, 0))
         rows.append(
@@ -131,7 +134,9 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 online=online,
                 total=cash + upi,
                 expense=expense,
-                net=cash + upi - expense,
+                net=net,
+                balance=balance,
+                handed=net - balance,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
                     for v in sorted(notes, reverse=True)
@@ -161,6 +166,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 total=cash + upi,
                 expense=Decimal(0),
                 net=cash + upi,
+                balance=Decimal(0),
+                handed=cash + upi,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
                     for v in sorted(notes, reverse=True)
@@ -185,6 +192,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         total=sum((r.total for r in rows), Decimal(0)),
         expense=sum((r.expense for r in rows), Decimal(0)),
         net=sum((r.net for r in rows), Decimal(0)),
+        balance=sum((r.balance for r in rows), Decimal(0)),
+        handed=sum((r.handed for r in rows), Decimal(0)),
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
     cashier_opening, cashier_closing = await cashier_box.opening_closing(db, on_date)

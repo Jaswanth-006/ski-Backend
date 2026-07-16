@@ -21,6 +21,7 @@ from app.db.models import (
     CashLedger,
     Credit,
     DaySheetStatus,
+    DeliveryBalance,
     DeliveryOtherSales,
     Expense,
     ExpenseItem,
@@ -83,6 +84,11 @@ async def _purge_users(session: AsyncSession, ids: Sequence[uuid.UUID]) -> None:
     await session.execute(delete(Job).where(Job.requested_by.in_(ids)))
     await session.execute(delete(RefreshToken).where(RefreshToken.user_id.in_(ids)))
     await session.execute(delete(Credit).where(Credit.created_by.in_(ids)))
+    await session.execute(
+        delete(DeliveryBalance).where(
+            or_(DeliveryBalance.delivery_id.in_(ids), DeliveryBalance.created_by.in_(ids))
+        )
+    )
     await session.execute(delete(DeliveryOtherSales).where(DeliveryOtherSales.delivery_id.in_(ids)))
     await session.execute(delete(User).where(User.id.in_(ids)))
 
