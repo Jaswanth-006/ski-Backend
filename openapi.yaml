@@ -313,6 +313,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - catalog
+      summary: Delete Cylinder Type
+      operationId: delete_cylinder_type_v1_cylinder_types__type_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: type_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Type Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/expense-items:
     get:
       tags:
@@ -2882,6 +2906,9 @@ components:
         cylinders:
           type: integer
           title: Cylinders
+        empties:
+          type: integer
+          title: Empties
         loaded:
           type: integer
           title: Loaded
@@ -2931,6 +2958,7 @@ components:
       - delivery_name
       - party_kind
       - cylinders
+      - empties
       - loaded
       - returned
       - cash
@@ -2948,6 +2976,9 @@ components:
         cylinders:
           type: integer
           title: Cylinders
+        empties:
+          type: integer
+          title: Empties
         cash:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -2983,6 +3014,7 @@ components:
       type: object
       required:
       - cylinders
+      - empties
       - cash
       - upi
       - online
@@ -3877,6 +3909,12 @@ components:
           type: integer
           minimum: 1.0
           title: Qty
+        empty_qty:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Empty Qty
       type: object
       required:
       - cylinder_type_id
@@ -3897,6 +3935,9 @@ components:
         qty:
           type: integer
           title: Qty
+        empty_qty:
+          type: integer
+          title: Empty Qty
         unit_price:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3915,6 +3956,7 @@ components:
       - code
       - label
       - qty
+      - empty_qty
       - unit_price
       - other_sales_per_unit
       - line_total

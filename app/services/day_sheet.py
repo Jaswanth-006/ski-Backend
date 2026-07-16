@@ -34,6 +34,8 @@ _AGG_SQL = text(
     SELECT COALESCE(s.delivery_id, s.customer_id) AS party_id,
            (s.customer_id IS NOT NULL)                                              AS is_customer,
            SUM(COALESCE((SELECT SUM(qty) FROM sale_lines WHERE sale_id = s.id), 0)) AS cylinders,
+           SUM(COALESCE((SELECT SUM(empty_qty) FROM sale_lines WHERE sale_id = s.id), 0))
+               AS empties,
            SUM(COALESCE((SELECT SUM(amount) FROM cash_ledger
                          WHERE sale_id = s.id AND kind = 'cash'), 0))               AS cash,
            SUM(s.upi_total)                                                          AS upi,
@@ -113,6 +115,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
     for d in drivers:
         a = agg.get(d["id"])
         cylinders = int(a["cylinders"]) if a else 0
+        empties = int(a["empties"]) if a else 0
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
         online = Decimal(a["online"]) if a else Decimal(0)
@@ -127,6 +130,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 delivery_name=d["name"],
                 party_kind="delivery",
                 cylinders=cylinders,
+                empties=empties,
                 loaded=loaded,
                 returned=returned,
                 cash=cash,
@@ -158,6 +162,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 delivery_name=c["name"],
                 party_kind="customer",
                 cylinders=int(a["cylinders"]) if a else 0,
+                empties=int(a["empties"]) if a else 0,
                 loaded=0,
                 returned=0,
                 cash=cash,
@@ -186,6 +191,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
 
     totals = DaySheetTotals(
         cylinders=sum(r.cylinders for r in rows),
+        empties=sum(r.empties for r in rows),
         cash=sum((r.cash for r in rows), Decimal(0)),
         upi=sum((r.upi for r in rows), Decimal(0)),
         online=sum((r.online for r in rows), Decimal(0)),

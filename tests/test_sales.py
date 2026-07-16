@@ -364,3 +364,71 @@ async def test_sale_balance_pushed_to_delivery_ledger(
             await db.execute(_delete(DeliveryBalance).where(DeliveryBalance.delivery_id == boy))
             await db.commit()
         await eng.dispose()
+
+
+async def test_sale_empties_differ_from_sold_and_show_on_day_sheet(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    """Empties returned can differ from cylinders sold and appear on the day sheet."""
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    boy = str(users.delivery_id)
+    try:
+        type_id = await _setup(http, admin, qty=50, price=100)
+        # Sold 10, but only 8 empties came back.
+        res = await http.post(
+            "/v1/sales",
+            headers={**admin, **_key()},
+            json={
+                "delivery_id": boy,
+                "business_date": TODAY,
+                "lines": [{"cylinder_type_id": type_id, "qty": 10, "empty_qty": 8}],
+                "denominations": [{"note_value": 1000, "note_count": 1}],
+                "upi_total": 0,
+            },
+        )
+        assert res.status_code == 201, res.text
+        assert res.json()["lines"][0]["empty_qty"] == 8
+
+        sheet = (await http.get(f"/v1/day-sheet/{TODAY}", headers=admin)).json()
+        row = next(r for r in sheet["rows"] if r["delivery_id"] == boy)
+        assert row["cylinders"] == 10
+        assert row["empties"] == 8
+
+        # Empty stock rose by 8 (not 10) for the type.
+        ov = (await http.get(f"/v1/stock/overview?date={TODAY}", headers=admin)).json()
+        crow = next(r for r in ov["cylinders"] if r["cylinder_type_id"] == type_id)
+        assert crow["empty_returned_by_customers"] == 8
+    finally:
+        await _cleanup()
+
+
+async def test_delete_cylinder_type(client: tuple[AsyncClient, SeededUsers]) -> None:
+    """An unused variety deletes; one used by a price is blocked (409)."""
+    http, _ = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        # Unused → deletes.
+        t1 = (
+            await http.post(
+                "/v1/cylinder-types", headers=admin, json={"code": TEST_CODE, "label": "Del"}
+            )
+        ).json()["id"]
+        assert (await http.delete(f"/v1/cylinder-types/{t1}", headers=admin)).status_code == 204
+
+        # Priced → blocked.
+        t2 = (
+            await http.post(
+                "/v1/cylinder-types", headers=admin, json={"code": TEST_CODE, "label": "Del2"}
+            )
+        ).json()["id"]
+        await http.put(
+            "/v1/prices",
+            headers=admin,
+            json={"cylinder_type_id": t2, "unit_price": 100, "effective_date": TODAY},
+        )
+        assert (await http.delete(f"/v1/cylinder-types/{t2}", headers=admin)).status_code == 409
+    finally:
+        await _cleanup()

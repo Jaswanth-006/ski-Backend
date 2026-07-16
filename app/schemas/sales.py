@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, model_validator
 class SaleLineIn(BaseModel):
     cylinder_type_id: uuid.UUID
     qty: int = Field(ge=1)
+    empty_qty: int | None = Field(default=None, ge=0)  # empties returned; defaults to qty
 
 
 class DenominationIn(BaseModel):
@@ -41,6 +42,7 @@ class SaleLineOut(BaseModel):
     code: str
     label: str
     qty: int
+    empty_qty: int  # empties returned for this line
     unit_price: Decimal  # base cylinder price
     other_sales_per_unit: Decimal  # per-boy extra on top
     line_total: Decimal  # (unit_price + other_sales_per_unit) × qty
