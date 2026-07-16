@@ -111,3 +111,28 @@ async def test_accessory_catalog_and_ac4_erv_overview(
         assert erow["empty_closing"] == -30  # no customer returns yet (phase B adds those)
     finally:
         await _cleanup()
+
+
+async def test_accessory_update_and_delete(client: tuple[AsyncClient, SeededUsers]) -> None:
+    http, _ = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        acc_id = (
+            await http.post("/v1/accessories", headers=admin, json={"name": ACC_NAME})
+        ).json()["id"]
+
+        # Rename + deactivate.
+        upd = await http.patch(
+            f"/v1/accessories/{acc_id}",
+            headers=admin,
+            json={"name": ACC_NAME + "-x", "is_active": False},
+        )
+        assert upd.status_code == 200
+        assert upd.json()["name"] == ACC_NAME + "-x"
+        assert upd.json()["is_active"] is False
+
+        # Delete an unused accessory.
+        assert (await http.delete(f"/v1/accessories/{acc_id}", headers=admin)).status_code == 204
+    finally:
+        await _cleanup()
