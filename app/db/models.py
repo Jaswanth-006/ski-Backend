@@ -239,7 +239,10 @@ class Sale(Base):
 
 class SaleLine(Base):
     __tablename__ = "sale_lines"
-    __table_args__ = (CheckConstraint("qty >= 0", name="ck_sale_lines_qty_nonneg"),)
+    __table_args__ = (
+        CheckConstraint("qty >= 0", name="ck_sale_lines_qty_nonneg"),
+        CheckConstraint("empty_qty >= 0", name="ck_sale_lines_empty_nonneg"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     sale_id: Mapped[uuid.UUID] = mapped_column(
@@ -249,6 +252,7 @@ class SaleLine(Base):
         UUID(as_uuid=True), ForeignKey("cylinder_types.id"), nullable=False
     )
     qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    empty_qty: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     other_sales_per_unit: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, server_default=text("0")

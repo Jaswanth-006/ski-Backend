@@ -67,6 +67,23 @@ async def update_cylinder_type(
     return row
 
 
+@router.delete("/cylinder-types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_cylinder_type(
+    type_id: uuid.UUID,
+    _: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    try:
+        await catalog_service.delete_cylinder_type(db, type_id)
+    except catalog_service.CylinderTypeNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="cylinder type not found") from exc
+    except catalog_service.CylinderTypeInUse as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="this variety is used by prices, stock, or sales — deactivate it instead",
+        ) from exc
+
+
 # ---- Expense items (Phase 1-D) ----
 @router.get("/expense-items", response_model=list[ExpenseItemOut])
 async def list_expense_items(

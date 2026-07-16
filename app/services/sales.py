@@ -131,16 +131,19 @@ async def create_and_post_sale(
         inv.quantity -= line.qty
         inv.version += 1
 
+        # Empties returned default to the number sold, but can differ.
+        empty_qty = line.empty_qty if line.empty_qty is not None else line.qty
         db.add(
             SaleLine(
                 sale_id=sale.id,
                 cylinder_type_id=line.cylinder_type_id,
                 qty=line.qty,
+                empty_qty=empty_qty,
                 unit_price=unit_price,
                 other_sales_per_unit=boy_extra,
             )
         )
-        # Full goes out, and the customer hands back an empty of the same type.
+        # Full goes out; empties come back (as many as were actually returned).
         db.add(
             StockLedger(
                 cylinder_type_id=line.cylinder_type_id,
@@ -152,17 +155,18 @@ async def create_and_post_sale(
                 created_by=actor.id,
             )
         )
-        db.add(
-            StockLedger(
-                cylinder_type_id=line.cylinder_type_id,
-                condition="empty",
-                delta=line.qty,
-                reason="sale",
-                business_date=data.business_date,
-                ref_id=sale.id,
-                created_by=actor.id,
+        if empty_qty:
+            db.add(
+                StockLedger(
+                    cylinder_type_id=line.cylinder_type_id,
+                    condition="empty",
+                    delta=empty_qty,
+                    reason="sale",
+                    business_date=data.business_date,
+                    ref_id=sale.id,
+                    created_by=actor.id,
+                )
             )
-        )
         revenue += (unit_price + boy_extra) * line.qty
 
     cash_total = Decimal(0)
@@ -236,6 +240,7 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
             code=code,
             label=label,
             qty=sl.qty,
+            empty_qty=sl.empty_qty,
             unit_price=sl.unit_price,
             other_sales_per_unit=sl.other_sales_per_unit,
             line_total=(sl.unit_price + sl.other_sales_per_unit) * sl.qty,

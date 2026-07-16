@@ -77,6 +77,27 @@ async def update_cylinder_type(
     return row
 
 
+class CylinderTypeInUse(Exception):
+    """The cylinder type is referenced by prices, stock, or sales — cannot delete."""
+
+
+class CylinderTypeNotFound(Exception):
+    """No cylinder type with that id."""
+
+
+async def delete_cylinder_type(db: AsyncSession, type_id: uuid.UUID) -> None:
+    """Hard-delete a variety. Only allowed when nothing references it."""
+    row = await db.get(CylinderType, type_id)
+    if row is None:
+        raise CylinderTypeNotFound(str(type_id))
+    await db.delete(row)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise CylinderTypeInUse(str(type_id)) from exc
+
+
 async def list_expense_items(db: AsyncSession, active: str = "true") -> list[ExpenseItem]:
     stmt = select(ExpenseItem)
     if active == "all":
