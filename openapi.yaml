@@ -3854,6 +3854,14 @@ components:
             pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online Total
           default: '0'
+        balance_total:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance Total
+          default: '0'
       type: object
       required:
       - business_date
@@ -3966,6 +3974,10 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online Total
+        balance_total:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance Total
         revenue_total:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -3989,6 +4001,7 @@ components:
       - cash_total
       - upi_total
       - online_total
+      - balance_total
       - revenue_total
       - settled_total
       title: SaleOut

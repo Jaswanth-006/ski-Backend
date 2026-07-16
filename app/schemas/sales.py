@@ -27,6 +27,7 @@ class SaleCreate(BaseModel):
     denominations: list[DenominationIn] = Field(default_factory=list)
     upi_total: Decimal = Field(ge=0, default=Decimal(0))
     online_total: Decimal = Field(ge=0, default=Decimal(0))  # paid direct to the company
+    balance_total: Decimal = Field(ge=0, default=Decimal(0))  # uncollected — the boy owes it
 
     @model_validator(mode="after")
     def _one_party(self) -> SaleCreate:
@@ -59,5 +60,6 @@ class SaleOut(BaseModel):
     cash_total: Decimal
     upi_total: Decimal
     online_total: Decimal
+    balance_total: Decimal  # uncollected — added to the boy's balance
     revenue_total: Decimal
-    settled_total: Decimal  # what the delivery boy hands in = cash + upi
+    settled_total: Decimal  # cash + upi handed in

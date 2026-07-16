@@ -314,3 +314,53 @@ async def test_other_sales_per_boy_applies_to_line_total(
         assert float(line["line_total"]) == 1200
     finally:
         await _cleanup()
+
+
+async def test_sale_balance_pushed_to_delivery_ledger(
+    client: tuple[AsyncClient, SeededUsers],
+) -> None:
+    """Uncollected balance reconciles the sale and is charged to the boy's ledger."""
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    boy = str(users.delivery_id)
+    try:
+        type_id = await _setup(http, admin, qty=50, price=100)
+        # 10 × 100 = 1000; boy hands 500 cash, keeps 500 → balance 500.
+        res = await http.post(
+            "/v1/sales",
+            headers={**admin, **_key()},
+            json={
+                "delivery_id": boy,
+                "business_date": TODAY,
+                "lines": [{"cylinder_type_id": type_id, "qty": 10}],
+                "denominations": [{"note_value": 500, "note_count": 1}],
+                "upi_total": 0,
+                "online_total": 0,
+                "balance_total": 500,
+            },
+        )
+        assert res.status_code == 201, res.text
+        assert float(res.json()["balance_total"]) == 500
+        assert float(res.json()["settled_total"]) == 500  # only the cash handed
+
+        summary = (await http.get("/v1/delivery-balances/summary", headers=admin)).json()
+        row = next(r for r in summary if r["delivery_id"] == boy)
+        assert float(row["balance"]) >= 500  # the sale created a charge
+
+        sheet = (await http.get(f"/v1/day-sheet/{TODAY}", headers=admin)).json()
+        drow = next(r for r in sheet["rows"] if r["delivery_id"] == boy)
+        assert float(drow["balance"]) == 500
+    finally:
+        await _cleanup()
+        # Clean the balance charge created above.
+        from app.db.models import DeliveryBalance
+        from sqlalchemy import delete as _delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker as _sm
+        from sqlalchemy.ext.asyncio import create_async_engine as _ce
+
+        eng = _ce(settings.database_url)
+        async with _sm(eng, expire_on_commit=False)() as db:
+            await db.execute(_delete(DeliveryBalance).where(DeliveryBalance.delivery_id == boy))
+            await db.commit()
+        await eng.dispose()

@@ -191,6 +191,7 @@ class Sale(Base):
         CheckConstraint("status IN ('pending','approved','rejected')", name="ck_sales_status"),
         CheckConstraint("upi_total >= 0", name="ck_sales_upi_nonneg"),
         CheckConstraint("online_total >= 0", name="ck_sales_online_nonneg"),
+        CheckConstraint("balance_total >= 0", name="ck_sales_balance_nonneg"),
         CheckConstraint("submitted_via IN ('mobile','web')", name="ck_sales_submitted_via"),
         CheckConstraint(
             "(delivery_id IS NOT NULL AND customer_id IS NULL) "
@@ -219,6 +220,9 @@ class Sale(Base):
         Numeric(12, 2), nullable=False, server_default=text("0")
     )
     online_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, server_default=text("0")
+    )
+    balance_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, server_default=text("0")
     )
     submitted_via: Mapped[str] = mapped_column(

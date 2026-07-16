@@ -21,6 +21,7 @@ from app.db.models import (
     Customer,
     CylinderType,
     DaySheetStatus,
+    DeliveryBalance,
     Inventory,
     Sale,
     SaleLine,
@@ -53,18 +54,24 @@ class ReconciliationFailed(Exception):
 
 
 def reconcile(
-    revenue: Decimal, cash_total: Decimal, upi_total: Decimal, online_total: Decimal
+    revenue: Decimal,
+    cash_total: Decimal,
+    upi_total: Decimal,
+    online_total: Decimal,
+    balance_total: Decimal,
 ) -> list[str]:
-    """Revenue tally: Σ(qty × unit_price) == cash + UPI + online (01-BACKEND-PRD §7).
+    """Revenue tally: Σ(qty × unit_price) == cash + UPI + online + balance (01-BACKEND-PRD §7).
 
-    Online is money paid straight to the company; the boy only settles cash + upi.
+    Online is paid straight to the company; balance is the part the boy didn't hand over
+    (added to what he owes). Cash + UPI is what he physically settles.
     """
     flags: list[str] = []
-    collected = cash_total + upi_total + online_total
+    collected = cash_total + upi_total + online_total + balance_total
     if collected != revenue:
         flags.append(
-            f"revenue mismatch: sold {revenue} but collected {collected} "
-            f"(cash {cash_total} + upi {upi_total} + online {online_total})"
+            f"revenue mismatch: sold {revenue} but accounted {collected} "
+            f"(cash {cash_total} + upi {upi_total} + online {online_total} "
+            f"+ balance {balance_total})"
         )
     return flags
 
@@ -93,6 +100,7 @@ async def create_and_post_sale(
         status="pending",
         upi_total=data.upi_total,
         online_total=data.online_total,
+        balance_total=data.balance_total,
         submitted_via="web",
     )
     db.add(sale)
@@ -166,7 +174,7 @@ async def create_and_post_sale(
         )
         cash_total += Decimal(denom.note_value * denom.note_count)
 
-    flags = reconcile(revenue, cash_total, data.upi_total, data.online_total)
+    flags = reconcile(revenue, cash_total, data.upi_total, data.online_total, data.balance_total)
     if flags and actor.role != "super_admin":
         raise ReconciliationFailed(flags)
 
@@ -174,6 +182,18 @@ async def create_and_post_sale(
     db.add(CashLedger(sale_id=sale.id, amount=data.upi_total, kind="upi"))
     if data.online_total:
         db.add(CashLedger(sale_id=sale.id, amount=data.online_total, kind="online"))
+    # The uncollected balance is money the delivery boy owes → his balance ledger.
+    if data.balance_total and data.delivery_id is not None:
+        db.add(
+            DeliveryBalance(
+                delivery_id=data.delivery_id,
+                amount=data.balance_total,
+                entry_date=data.business_date,
+                kind="charge",
+                note="sale balance (uncollected)",
+                created_by=actor.id,
+            )
+        )
 
     sale.status = "approved"
     sale.approved_by = actor.id
@@ -192,6 +212,7 @@ async def create_and_post_sale(
             "cash": str(cash_total),
             "upi": str(data.upi_total),
             "online": str(data.online_total),
+            "balance": str(data.balance_total),
             "override": bool(flags),
         },
     )
@@ -250,6 +271,7 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         cash_total=cash_total,
         upi_total=sale.upi_total,
         online_total=sale.online_total,
+        balance_total=sale.balance_total,
         revenue_total=revenue_total,
         settled_total=cash_total + sale.upi_total,
     )
