@@ -70,7 +70,8 @@ def reconcile(
     if collected != revenue:
         flags.append(
             f"revenue mismatch: sold {revenue} but accounted {collected} "
-            f"(cash {cash_total} + upi {upi_total} + online {online_total} + balance {balance_total})"
+            f"(cash {cash_total} + upi {upi_total} + online {online_total} "
+            f"+ balance {balance_total})"
         )
     return flags
 
