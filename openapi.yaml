@@ -839,6 +839,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/delivery-balances/summary:
+    get:
+      tags:
+      - delivery-balances
+      summary: Balance Summary
+      operationId: balance_summary_v1_delivery_balances_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DeliveryBalanceSummaryOut'
+                type: array
+                title: Response Balance Summary V1 Delivery Balances Summary Get
+      security:
+      - HTTPBearer: []
+  /v1/delivery-balances:
+    get:
+      tags:
+      - delivery-balances
+      summary: List Balance Entries
+      operationId: list_balance_entries_v1_delivery_balances_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryBalanceEntryOut'
+                title: Response List Balance Entries V1 Delivery Balances Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - delivery-balances
+      summary: Create Balance Entry
+      operationId: create_balance_entry_v1_delivery_balances_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryBalanceCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryBalanceEntryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/credits:
     get:
       tags:
@@ -2836,6 +2912,14 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
+        balance:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance
+        handed:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Handed
         denominations:
           items:
             $ref: '#/components/schemas/Denomination'
@@ -2855,6 +2939,8 @@ components:
       - total
       - expense
       - net
+      - balance
+      - handed
       - denominations
       title: DaySheetRow
     DaySheetTotals:
@@ -2886,6 +2972,14 @@ components:
           type: string
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
+        balance:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance
+        handed:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Handed
       type: object
       required:
       - cylinders
@@ -2895,7 +2989,111 @@ components:
       - total
       - expense
       - net
+      - balance
+      - handed
       title: DaySheetTotals
+    DeliveryBalanceCreate:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        kind:
+          type: string
+          title: Kind
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - delivery_id
+      - amount
+      - entry_date
+      - kind
+      title: DeliveryBalanceCreate
+    DeliveryBalanceEntryOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        kind:
+          type: string
+          title: Kind
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - delivery_id
+      - amount
+      - entry_date
+      - kind
+      - note
+      - created_at
+      title: DeliveryBalanceEntryOut
+    DeliveryBalanceSummaryOut:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        charged:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Charged
+        repaid:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Repaid
+        balance:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance
+      type: object
+      required:
+      - delivery_id
+      - delivery_name
+      - charged
+      - repaid
+      - balance
+      title: DeliveryBalanceSummaryOut
     DeliveryOtherSalesOut:
       properties:
         delivery_id:

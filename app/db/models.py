@@ -274,6 +274,33 @@ class Credit(Base):
     )
 
 
+class DeliveryBalance(Base):
+    """A charge (boy owes) or repayment (boy paid back) on a delivery boy's balance."""
+
+    __tablename__ = "delivery_balances"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_delivery_balances_amount_pos"),
+        CheckConstraint("kind IN ('charge','repayment')", name="ck_delivery_balances_kind"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    entry_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # 'charge' | 'repayment'
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class DeliveryOtherSales(Base):
     """Per-delivery-boy extra ₹/cylinder on top of the fixed price (owner-managed)."""
 

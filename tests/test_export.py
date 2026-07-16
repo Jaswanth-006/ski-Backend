@@ -28,6 +28,8 @@ def test_build_day_sheet_xlsx_returns_valid_workbook() -> None:
             total=Decimal(0),
             expense=Decimal(0),
             net=Decimal(0),
+            balance=Decimal(0),
+            handed=Decimal(0),
         ),
         expenses_total=Decimal(0),
         net=Decimal(0),

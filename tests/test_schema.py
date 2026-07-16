@@ -30,6 +30,7 @@ EXPECTED_TABLES = {
     "delivery_other_sales",  # added in Phase C
     "credits",  # added in Phase E
     "customers",  # added in Phase I
+    "delivery_balances",  # added in Phase K
 }
 
 
