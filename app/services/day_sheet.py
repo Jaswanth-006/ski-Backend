@@ -31,7 +31,8 @@ class DayAlreadyClosed(Exception):
 
 _AGG_SQL = text(
     """
-    SELECT s.delivery_id,
+    SELECT COALESCE(s.delivery_id, s.customer_id) AS party_id,
+           (s.customer_id IS NOT NULL)                                              AS is_customer,
            SUM(COALESCE((SELECT SUM(qty) FROM sale_lines WHERE sale_id = s.id), 0)) AS cylinders,
            SUM(COALESCE((SELECT SUM(amount) FROM cash_ledger
                          WHERE sale_id = s.id AND kind = 'cash'), 0))               AS cash,
@@ -39,7 +40,7 @@ _AGG_SQL = text(
            SUM(s.online_total)                                                       AS online
     FROM sales s
     WHERE s.business_date = :on_date AND s.status = 'approved'
-    GROUP BY s.delivery_id
+    GROUP BY party_id, is_customer
     """
 )
 
@@ -52,12 +53,23 @@ _EXP_BY_DRIVER_SQL = text(
 
 _DENOM_SQL = text(
     """
-    SELECT s.delivery_id, cd.note_value, SUM(cd.note_count) AS note_count
+    SELECT COALESCE(s.delivery_id, s.customer_id) AS party_id,
+           cd.note_value, SUM(cd.note_count) AS note_count
     FROM cash_denominations cd
     JOIN sales s ON s.id = cd.sale_id
     WHERE s.business_date = :on_date AND s.status = 'approved'
-    GROUP BY s.delivery_id, cd.note_value
+    GROUP BY party_id, cd.note_value
     HAVING SUM(cd.note_count) > 0
+    """
+)
+
+_CUSTOMERS_WITH_SALES = text(
+    """
+    SELECT c.id, c.name FROM customers c
+    JOIN sales s ON s.customer_id = c.id
+    WHERE s.business_date = :on_date AND s.status = 'approved'
+    GROUP BY c.id, c.name
+    ORDER BY c.name
     """
 )
 
@@ -66,7 +78,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
     status = await db.get(DaySheetStatus, on_date)
 
     agg = {
-        row["delivery_id"]: row
+        row["party_id"]: row
         for row in (await db.execute(_AGG_SQL, {"on_date": on_date})).mappings().all()
     }
     drivers = (
@@ -82,10 +94,10 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         .all()
     )
 
-    # Per-driver denomination breakdown: {delivery_id: {note_value: count}}
+    # Per-party denomination breakdown: {party_id: {note_value: count}}
     denom_by_driver: dict[uuid.UUID, dict[int, int]] = {}
     for row in (await db.execute(_DENOM_SQL, {"on_date": on_date})).mappings().all():
-        denom_by_driver.setdefault(row["delivery_id"], {})[int(row["note_value"])] = int(
+        denom_by_driver.setdefault(row["party_id"], {})[int(row["note_value"])] = int(
             row["note_count"]
         )
 
@@ -110,6 +122,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
             DaySheetRow(
                 delivery_id=d["id"],
                 delivery_name=d["name"],
+                party_kind="delivery",
                 cylinders=cylinders,
                 loaded=loaded,
                 returned=returned,
@@ -126,7 +139,36 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
             )
         )
 
-    # Aggregate every driver's notes into a single per-value total.
+    # Corporate customers who bought directly from the warehouse that day.
+    customers = (await db.execute(_CUSTOMERS_WITH_SALES, {"on_date": on_date})).mappings().all()
+    for c in customers:
+        a = agg.get(c["id"])
+        cash = Decimal(a["cash"]) if a else Decimal(0)
+        upi = Decimal(a["upi"]) if a else Decimal(0)
+        online = Decimal(a["online"]) if a else Decimal(0)
+        notes = denom_by_driver.get(c["id"], {})
+        rows.append(
+            DaySheetRow(
+                delivery_id=c["id"],
+                delivery_name=c["name"],
+                party_kind="customer",
+                cylinders=int(a["cylinders"]) if a else 0,
+                loaded=0,
+                returned=0,
+                cash=cash,
+                upi=upi,
+                online=online,
+                total=cash + upi,
+                expense=Decimal(0),
+                net=cash + upi,
+                denominations=[
+                    Denomination(note_value=v, note_count=notes[v])
+                    for v in sorted(notes, reverse=True)
+                ],
+            )
+        )
+
+    # Aggregate every party's notes into a single per-value total.
     combined: dict[int, int] = {}
     for notes in denom_by_driver.values():
         for value, count in notes.items():

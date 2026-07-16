@@ -29,6 +29,7 @@ EXPECTED_TABLES = {
     "accessories",  # added in stock v2
     "delivery_other_sales",  # added in Phase C
     "credits",  # added in Phase E
+    "customers",  # added in Phase I
 }
 
 

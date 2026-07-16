@@ -15,8 +15,9 @@ class Denomination(BaseModel):
 
 
 class DaySheetRow(BaseModel):
-    delivery_id: uuid.UUID
-    delivery_name: str
+    delivery_id: uuid.UUID  # party id (delivery boy or customer)
+    delivery_name: str  # party name
+    party_kind: str  # 'delivery' | 'customer'
     cylinders: int  # sold
     loaded: int  # cylinders loaded out to this driver
     returned: int  # cylinders brought back

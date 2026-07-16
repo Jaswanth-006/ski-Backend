@@ -934,6 +934,99 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/customers:
+    get:
+      tags:
+      - customers
+      summary: List Customers
+      operationId: list_customers_v1_customers_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Active Only
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerOut'
+                title: Response List Customers V1 Customers Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - customers
+      summary: Create Customer
+      operationId: create_customer_v1_customers_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/customers/{customer_id}:
+    patch:
+      tags:
+      - customers
+      summary: Update Customer
+      operationId: update_customer_v1_customers__customer_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: customer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Customer Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/sales:
     post:
       tags:
@@ -2441,6 +2534,51 @@ components:
       - settled_date
       - created_at
       title: CreditOut
+    CustomerCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: CustomerCreate
+    CustomerOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - name
+      - is_active
+      title: CustomerOut
+    CustomerUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: CustomerUpdate
     CylinderMovementOut:
       properties:
         business_date:
@@ -2662,6 +2800,9 @@ components:
         delivery_name:
           type: string
           title: Delivery Name
+        party_kind:
+          type: string
+          title: Party Kind
         cylinders:
           type: integer
           title: Cylinders
@@ -2704,6 +2845,7 @@ components:
       required:
       - delivery_id
       - delivery_name
+      - party_kind
       - cylinders
       - loaded
       - returned
@@ -3472,9 +3614,17 @@ components:
     SaleCreate:
       properties:
         delivery_id:
-          type: string
-          format: uuid
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
           title: Delivery Id
+        customer_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Customer Id
         business_date:
           type: string
           format: date
@@ -3508,7 +3658,6 @@ components:
           default: '0'
       type: object
       required:
-      - delivery_id
       - business_date
       - lines
       title: SaleCreate
@@ -3571,12 +3720,23 @@ components:
           format: uuid
           title: Id
         delivery_id:
-          type: string
-          format: uuid
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
           title: Delivery Id
-        delivery_name:
+        customer_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Customer Id
+        party_kind:
           type: string
-          title: Delivery Name
+          title: Party Kind
+        party_name:
+          type: string
+          title: Party Name
         business_date:
           type: string
           format: date
@@ -3620,7 +3780,9 @@ components:
       required:
       - id
       - delivery_id
-      - delivery_name
+      - customer_id
+      - party_kind
+      - party_name
       - business_date
       - status
       - submitted_via

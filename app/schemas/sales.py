@@ -6,7 +6,7 @@ import datetime as dt
 import uuid
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SaleLineIn(BaseModel):
@@ -20,12 +20,19 @@ class DenominationIn(BaseModel):
 
 
 class SaleCreate(BaseModel):
-    delivery_id: uuid.UUID
+    delivery_id: uuid.UUID | None = None  # a delivery boy…
+    customer_id: uuid.UUID | None = None  # …or a corporate customer (exactly one)
     business_date: dt.date
     lines: list[SaleLineIn] = Field(min_length=1)
     denominations: list[DenominationIn] = Field(default_factory=list)
     upi_total: Decimal = Field(ge=0, default=Decimal(0))
     online_total: Decimal = Field(ge=0, default=Decimal(0))  # paid direct to the company
+
+    @model_validator(mode="after")
+    def _one_party(self) -> SaleCreate:
+        if (self.delivery_id is None) == (self.customer_id is None):
+            raise ValueError("provide exactly one of delivery_id or customer_id")
+        return self
 
 
 class SaleLineOut(BaseModel):
@@ -40,8 +47,10 @@ class SaleLineOut(BaseModel):
 
 class SaleOut(BaseModel):
     id: uuid.UUID
-    delivery_id: uuid.UUID
-    delivery_name: str
+    delivery_id: uuid.UUID | None
+    customer_id: uuid.UUID | None
+    party_kind: str  # 'delivery' | 'customer'
+    party_name: str
     business_date: dt.date
     status: str
     submitted_via: str
