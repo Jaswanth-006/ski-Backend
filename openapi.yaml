@@ -809,6 +809,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/accessories/{accessory_id}:
+    patch:
+      tags:
+      - accessories
+      summary: Update Accessory
+      operationId: update_accessory_v1_accessories__accessory_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: accessory_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Accessory Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessoryUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessoryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - accessories
+      summary: Delete Accessory
+      operationId: delete_accessory_v1_accessories__accessory_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: accessory_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Accessory Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/delivery-other-sales:
     get:
       tags:
@@ -2300,6 +2359,22 @@ components:
       - sold
       - closing
       title: AccessoryStockRow
+    AccessoryUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Name
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: AccessoryUpdate
     AuditOut:
       properties:
         id:
