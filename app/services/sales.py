@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     CashDenomination,
     CashLedger,
+    Customer,
     CylinderType,
     DaySheetStatus,
     Inventory,
@@ -87,6 +88,7 @@ async def create_and_post_sale(
     sale = Sale(
         idempotency_key=idempotency_key,
         delivery_id=data.delivery_id,
+        customer_id=data.customer_id,
         business_date=data.business_date,
         status="pending",
         upi_total=data.upi_total,
@@ -96,8 +98,12 @@ async def create_and_post_sale(
     db.add(sale)
     await db.flush()  # get sale.id
 
-    # The boy's per-cylinder extra rides on top of the fixed price for every line.
-    boy_extra = await delivery_other_sales.amount_for(db, data.delivery_id)
+    # The boy's per-cylinder extra rides on top of the fixed price (delivery sales only).
+    boy_extra = (
+        await delivery_other_sales.amount_for(db, data.delivery_id)
+        if data.delivery_id is not None
+        else Decimal(0)
+    )
 
     revenue = Decimal(0)
     for line in data.lines:
@@ -221,12 +227,21 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         select(CashLedger.amount).where(CashLedger.sale_id == sale.id, CashLedger.kind == "cash")
     ) or Decimal(0)
 
-    delivery_name = await db.scalar(select(User.name).where(User.id == sale.delivery_id)) or "—"
+    if sale.customer_id is not None:
+        party_kind = "customer"
+        party_name = (
+            await db.scalar(select(Customer.name).where(Customer.id == sale.customer_id)) or "—"
+        )
+    else:
+        party_kind = "delivery"
+        party_name = await db.scalar(select(User.name).where(User.id == sale.delivery_id)) or "—"
 
     return SaleOut(
         id=sale.id,
         delivery_id=sale.delivery_id,
-        delivery_name=delivery_name,
+        customer_id=sale.customer_id,
+        party_kind=party_kind,
+        party_name=party_name,
         business_date=sale.business_date,
         status=sale.status,
         submitted_via=sale.submitted_via,

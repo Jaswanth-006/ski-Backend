@@ -83,6 +83,18 @@ class CylinderType(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
 
+class Customer(Base):
+    """Corporate buyer who takes directly from the warehouse (no delivery boy)."""
+
+    __tablename__ = "customers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
 class Accessory(Base):
     """Stocked non-cylinder item (stove, pipe, wire, regulator …). Stock v2."""
 
@@ -180,6 +192,11 @@ class Sale(Base):
         CheckConstraint("upi_total >= 0", name="ck_sales_upi_nonneg"),
         CheckConstraint("online_total >= 0", name="ck_sales_online_nonneg"),
         CheckConstraint("submitted_via IN ('mobile','web')", name="ck_sales_submitted_via"),
+        CheckConstraint(
+            "(delivery_id IS NOT NULL AND customer_id IS NULL) "
+            "OR (delivery_id IS NULL AND customer_id IS NOT NULL)",
+            name="ck_sales_party",
+        ),
         Index("idx_sales_date_delivery", "business_date", "delivery_id"),
         Index("idx_sales_status", "status", postgresql_where=text("status = 'pending'")),
     )
@@ -190,8 +207,11 @@ class Sale(Base):
     idempotency_key: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, unique=True
     )
-    delivery_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    delivery_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=True
     )
     business_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
