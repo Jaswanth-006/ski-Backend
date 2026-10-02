@@ -1,11 +1,12 @@
-"""Stock v2 schemas — ac4 (received), erv (empty return), and the daily overview."""
+"""Stock v2 schemas — ac4 (received), erv (empty return), return (damaged/lost), overview."""
 
 from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Ac4CylinderLine(BaseModel):
@@ -36,6 +37,33 @@ class ErvRequest(BaseModel):
 
     business_date: dt.date | None = None  # defaults to today
     lines: list[ErvLine] = Field(min_length=1)
+
+
+class ReturnLine(BaseModel):
+    """One damaged/lost item: a cylinder (full or empty) or an accessory."""
+
+    cylinder_type_id: uuid.UUID | None = None
+    accessory_id: uuid.UUID | None = None
+    condition: Literal["full", "empty"] | None = None  # cylinders only
+    qty: int = Field(ge=1)
+    note: str | None = Field(default=None, max_length=200)  # e.g. "damaged", "lost"
+
+    @model_validator(mode="after")
+    def _one_item(self) -> ReturnLine:
+        if (self.cylinder_type_id is None) == (self.accessory_id is None):
+            raise ValueError("give exactly one of cylinder_type_id or accessory_id")
+        if self.cylinder_type_id is not None and self.condition is None:
+            raise ValueError("condition (full/empty) is required for a cylinder")
+        if self.accessory_id is not None and self.condition is not None:
+            raise ValueError("accessories have no condition")
+        return self
+
+
+class ReturnRequest(BaseModel):
+    """Damaged or lost items taken out of stock."""
+
+    business_date: dt.date | None = None  # defaults to today
+    lines: list[ReturnLine] = Field(min_length=1)
 
 
 class CylinderStockRow(BaseModel):
