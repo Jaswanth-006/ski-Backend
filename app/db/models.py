@@ -201,6 +201,12 @@ class Sale(Base):
         ),
         Index("idx_sales_date_delivery", "business_date", "delivery_id"),
         Index("idx_sales_status", "status", postgresql_where=text("status = 'pending'")),
+        Index(
+            "uq_sales_invoice_no",
+            "invoice_no",
+            unique=True,
+            postgresql_where=text("invoice_no IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -209,6 +215,8 @@ class Sale(Base):
     idempotency_key: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, unique=True
     )
+    # Unique when set; sales before migration 0017 have none.
+    invoice_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -297,6 +305,33 @@ class DeliveryBalance(Base):
     )
     delivery_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    entry_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # 'charge' | 'repayment'
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CustomerBalance(Base):
+    """A charge (customer owes) or repayment (customer paid back) on a customer's balance."""
+
+    __tablename__ = "customer_balances"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_customer_balances_amount_pos"),
+        CheckConstraint("kind IN ('charge','repayment')", name="ck_customer_balances_kind"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     entry_date: Mapped[dt.date] = mapped_column(Date, nullable=False)

@@ -83,6 +83,7 @@ async def test_eod_numbers_and_owner_only_net_profit(
                 "/v1/sales",
                 headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
                 json={
+                    "invoice_no": f"T-{uuid.uuid4()}",
                     "delivery_id": str(users.delivery_id),
                     "business_date": DAY,
                     "lines": [{"cylinder_type_id": type_id, "qty": 3}],  # revenue 3000
@@ -153,6 +154,7 @@ async def test_collections_trend_and_cylinder_movement(
                 "/v1/sales",
                 headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
                 json={
+                    "invoice_no": f"T-{uuid.uuid4()}",
                     "delivery_id": str(users.delivery_id),
                     "business_date": DAY,
                     "lines": [{"cylinder_type_id": type_id, "qty": 3}],

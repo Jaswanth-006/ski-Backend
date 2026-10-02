@@ -69,6 +69,7 @@ async def test_month_sheet_by_date_with_online_and_empties(
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": DAY.isoformat(),
                 "lines": [{"cylinder_type_id": type_id, "qty": 10}],

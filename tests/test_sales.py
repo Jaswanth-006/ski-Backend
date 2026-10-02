@@ -83,6 +83,7 @@ async def test_sale_success_and_reconciled(client: tuple[AsyncClient, SeededUser
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 2}],
@@ -111,6 +112,7 @@ async def test_idempotent_resubmit_creates_one_sale(
     try:
         type_id = await _setup(http, admin, qty=50)
         payload = {
+            "invoice_no": f"T-{uuid.uuid4()}",
             "delivery_id": str(users.delivery_id),
             "business_date": TODAY,
             "lines": [{"cylinder_type_id": type_id, "qty": 2}],
@@ -140,6 +142,7 @@ async def test_reconciliation_mismatch_blocks_office(
             "/v1/sales",
             headers={**office, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 2}],  # revenue 2000
@@ -165,6 +168,7 @@ async def test_insufficient_stock_rolls_back(client: tuple[AsyncClient, SeededUs
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 5}],  # more than stock
@@ -189,6 +193,7 @@ async def test_audit_records_price_and_sale(client: tuple[AsyncClient, SeededUse
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 1}],
@@ -219,6 +224,7 @@ async def test_sale_with_online_payment_and_empty_stock(
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 10}],
@@ -256,6 +262,7 @@ async def test_sale_online_mismatch_blocks_office(
             "/v1/sales",
             headers={**office, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 10}],  # revenue 1000
@@ -298,6 +305,7 @@ async def test_other_sales_per_boy_applies_to_line_total(
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 10}],
@@ -331,6 +339,7 @@ async def test_sale_balance_pushed_to_delivery_ledger(
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": boy,
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 10}],
@@ -381,6 +390,7 @@ async def test_sale_empties_differ_from_sold_and_show_on_day_sheet(
             "/v1/sales",
             headers={**admin, **_key()},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": boy,
                 "business_date": TODAY,
                 "lines": [{"cylinder_type_id": type_id, "qty": 10, "empty_qty": 8}],

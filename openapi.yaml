@@ -1027,6 +1027,84 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/customer-balances/summary:
+    get:
+      tags:
+      - customer-balances
+      summary: Customer Balance Summary
+      operationId: customer_balance_summary_v1_customer_balances_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CustomerBalanceSummaryOut'
+                type: array
+                title: Response Customer Balance Summary V1 Customer Balances Summary
+                  Get
+      security:
+      - HTTPBearer: []
+  /v1/customer-balances:
+    get:
+      tags:
+      - customer-balances
+      summary: List Customer Balance Entries
+      operationId: list_customer_balance_entries_v1_customer_balances_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: customer_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Customer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerBalanceEntryOut'
+                title: Response List Customer Balance Entries V1 Customer Balances
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - customer-balances
+      summary: Create Customer Balance Entry
+      operationId: create_customer_balance_entry_v1_customer_balances_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerBalanceCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerBalanceEntryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/credits:
     get:
       tags:
@@ -2738,6 +2816,108 @@ components:
       - settled_date
       - created_at
       title: CreditOut
+    CustomerBalanceCreate:
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+          title: Customer Id
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        kind:
+          type: string
+          title: Kind
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - customer_id
+      - amount
+      - entry_date
+      - kind
+      title: CustomerBalanceCreate
+    CustomerBalanceEntryOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        customer_id:
+          type: string
+          format: uuid
+          title: Customer Id
+        amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        kind:
+          type: string
+          title: Kind
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - customer_id
+      - amount
+      - entry_date
+      - kind
+      - note
+      - created_at
+      title: CustomerBalanceEntryOut
+    CustomerBalanceSummaryOut:
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+          title: Customer Id
+        customer_name:
+          type: string
+          title: Customer Name
+        charged:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Charged
+        repaid:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Repaid
+        balance:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Balance
+      type: object
+      required:
+      - customer_id
+      - customer_name
+      - charged
+      - repaid
+      - balance
+      title: CustomerBalanceSummaryOut
     CustomerCreate:
       properties:
         name:
@@ -4003,6 +4183,11 @@ components:
       description: Damaged or lost items taken out of stock.
     SaleCreate:
       properties:
+        invoice_no:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Invoice No
         delivery_id:
           anyOf:
           - type: string
@@ -4056,6 +4241,7 @@ components:
           default: '0'
       type: object
       required:
+      - invoice_no
       - business_date
       - lines
       title: SaleCreate
@@ -4127,6 +4313,11 @@ components:
           type: string
           format: uuid
           title: Id
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
         delivery_id:
           anyOf:
           - type: string
@@ -4191,6 +4382,7 @@ components:
       type: object
       required:
       - id
+      - invoice_no
       - delivery_id
       - customer_id
       - party_kind

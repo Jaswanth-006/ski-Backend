@@ -93,6 +93,7 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": D1.isoformat(),
                 "lines": [{"cylinder_type_id": type_id, "qty": 2}],
@@ -110,6 +111,7 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": D2.isoformat(),
                 "lines": [{"cylinder_type_id": type_id, "qty": 1}],

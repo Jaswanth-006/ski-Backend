@@ -13,12 +13,14 @@ import uuid
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     CashDenomination,
     CashLedger,
     Customer,
+    CustomerBalance,
     CylinderType,
     DaySheetStatus,
     DeliveryBalance,
@@ -30,6 +32,12 @@ from app.db.models import (
 )
 from app.schemas.sales import SaleCreate, SaleLineOut, SaleOut
 from app.services import audit, delivery_other_sales, pricing
+
+
+class DuplicateInvoice(Exception):
+    def __init__(self, invoice_no: str) -> None:
+        self.invoice_no = invoice_no
+        super().__init__(f"invoice number {invoice_no} is already used")
 
 
 class DayClosed(Exception):
@@ -91,9 +99,12 @@ async def create_and_post_sale(
         return await _build_sale_out(db, existing)
 
     await _assert_day_open(db, data.business_date)
+    if await db.scalar(select(Sale.id).where(Sale.invoice_no == data.invoice_no)) is not None:
+        raise DuplicateInvoice(data.invoice_no)
 
     sale = Sale(
         idempotency_key=idempotency_key,
+        invoice_no=data.invoice_no,
         delivery_id=data.delivery_id,
         customer_id=data.customer_id,
         business_date=data.business_date,
@@ -186,18 +197,31 @@ async def create_and_post_sale(
     db.add(CashLedger(sale_id=sale.id, amount=data.upi_total, kind="upi"))
     if data.online_total:
         db.add(CashLedger(sale_id=sale.id, amount=data.online_total, kind="online"))
-    # The uncollected balance is money the delivery boy owes → his balance ledger.
-    if data.balance_total and data.delivery_id is not None:
-        db.add(
-            DeliveryBalance(
-                delivery_id=data.delivery_id,
-                amount=data.balance_total,
-                entry_date=data.business_date,
-                kind="charge",
-                note="sale balance (uncollected)",
-                created_by=actor.id,
+    # The uncollected balance is money the delivery boy / customer owes → their balance ledger.
+    if data.balance_total:
+        note = f"sale balance (uncollected) · invoice {data.invoice_no}"
+        if data.delivery_id is not None:
+            db.add(
+                DeliveryBalance(
+                    delivery_id=data.delivery_id,
+                    amount=data.balance_total,
+                    entry_date=data.business_date,
+                    kind="charge",
+                    note=note,
+                    created_by=actor.id,
+                )
             )
-        )
+        else:
+            db.add(
+                CustomerBalance(
+                    customer_id=data.customer_id,
+                    amount=data.balance_total,
+                    entry_date=data.business_date,
+                    kind="charge",
+                    note=note,
+                    created_by=actor.id,
+                )
+            )
 
     sale.status = "approved"
     sale.approved_by = actor.id
@@ -210,7 +234,9 @@ async def create_and_post_sale(
         "sale",
         sale.id,
         new={
+            "invoice_no": data.invoice_no,
             "delivery_id": str(data.delivery_id),
+            "customer_id": str(data.customer_id),
             "business_date": str(data.business_date),
             "revenue": str(revenue),
             "cash": str(cash_total),
@@ -221,7 +247,14 @@ async def create_and_post_sale(
         },
     )
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # Lost a race with another sale using the same invoice number.
+        await db.rollback()
+        if "uq_sales_invoice_no" in str(exc.orig):
+            raise DuplicateInvoice(data.invoice_no) from exc
+        raise
     return await _build_sale_out(db, sale)
 
 
@@ -264,6 +297,7 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
 
     return SaleOut(
         id=sale.id,
+        invoice_no=sale.invoice_no,
         delivery_id=sale.delivery_id,
         customer_id=sale.customer_id,
         party_kind=party_kind,
