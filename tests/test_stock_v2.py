@@ -113,6 +113,72 @@ async def test_accessory_catalog_and_ac4_erv_overview(
         await _cleanup()
 
 
+async def test_return_damaged_or_lost(client: tuple[AsyncClient, SeededUsers]) -> None:
+    http, _ = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    try:
+        type_id = (
+            await http.post(
+                "/v1/cylinder-types", headers=admin, json={"code": TYPE_CODE, "label": "SV2"}
+            )
+        ).json()["id"]
+        acc_id = (
+            await http.post("/v1/accessories", headers=admin, json={"name": ACC_NAME})
+        ).json()["id"]
+        await http.post(
+            "/v1/stock/ac4",
+            headers=admin,
+            json={
+                "business_date": D1.isoformat(),
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
+                "accessories": [{"accessory_id": acc_id, "qty": 10}],
+            },
+        )
+
+        # Return 3 damaged full, 2 lost empties and 1 damaged accessory.
+        ret = await http.post(
+            "/v1/stock/return",
+            headers=admin,
+            json={
+                "business_date": D1.isoformat(),
+                "lines": [
+                    {"cylinder_type_id": type_id, "condition": "full", "qty": 3, "note": "damaged"},
+                    {"cylinder_type_id": type_id, "condition": "empty", "qty": 2, "note": "lost"},
+                    {"accessory_id": acc_id, "qty": 1, "note": "damaged"},
+                ],
+            },
+        )
+        assert ret.status_code == 201
+        row = _cyl_row(ret.json(), TYPE_CODE)
+        assert row["full_closing"] == 47
+        assert row["empty_closing"] == -2
+        assert _acc_row(ret.json(), ACC_NAME)["closing"] == 9
+
+        # The live inventory that sales draw from moves too.
+        inv = (await http.get("/v1/inventory", headers=admin)).json()
+        assert next(i for i in inv if i["cylinder_type_id"] == type_id)["quantity"] == 47
+
+        # Can't return more full cylinders than are in stock — nothing is written.
+        too_many = await http.post(
+            "/v1/stock/return",
+            headers=admin,
+            json={"lines": [{"cylinder_type_id": type_id, "condition": "full", "qty": 999}]},
+        )
+        assert too_many.status_code == 409
+
+        # A cylinder line needs a condition; an accessory line must not have one.
+        for bad in (
+            {"cylinder_type_id": type_id, "qty": 1},
+            {"accessory_id": acc_id, "condition": "full", "qty": 1},
+            {"cylinder_type_id": type_id, "accessory_id": acc_id, "condition": "full", "qty": 1},
+        ):
+            res = await http.post("/v1/stock/return", headers=admin, json={"lines": [bad]})
+            assert res.status_code == 422
+    finally:
+        await _cleanup()
+
+
 async def test_accessory_update_and_delete(client: tuple[AsyncClient, SeededUsers]) -> None:
     http, _ = client
     await _cleanup()

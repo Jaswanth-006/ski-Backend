@@ -148,7 +148,7 @@ class StockLedger(Base):
     __tablename__ = "stock_ledger"
     __table_args__ = (
         CheckConstraint(
-            "reason IN ('intake','ac4','erv','sale','reversal','adjust')",
+            "reason IN ('intake','ac4','erv','return','sale','reversal','adjust')",
             name="ck_stock_ledger_reason",
         ),
         CheckConstraint(
@@ -176,6 +176,7 @@ class StockLedger(Base):
         Date, nullable=False, server_default=text("CURRENT_DATE")
     )
     ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)  # why (e.g. return: damaged)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

@@ -1,4 +1,4 @@
-"""Stock v2 service — ac4 (received), erv (empty return), and the daily overview.
+"""Stock v2 service — ac4 (received), erv (empty return), return (damaged/lost), overview.
 
 Everything is derived from the append-only ``stock_ledger``. Per day D:
 opening = Σ delta before D; closing = Σ delta up to and including D — same pattern as the
@@ -11,7 +11,7 @@ import datetime as dt
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,12 +23,17 @@ from app.schemas.stock import (
     AccessoryStockRow,
     CylinderStockRow,
     ErvLine,
+    ReturnLine,
     StockOverview,
 )
 
 
 class InvalidReference(Exception):
     """A referenced cylinder type or accessory does not exist."""
+
+
+class InsufficientStock(Exception):
+    """A return asks to remove more full cylinders than are in stock."""
 
 
 async def record_ac4(
@@ -106,6 +111,49 @@ async def record_erv(
     except IntegrityError as exc:
         await db.rollback()
         raise InvalidReference("one or more cylinder types are invalid") from exc
+
+
+async def record_return(
+    db: AsyncSession,
+    *,
+    lines: Sequence[ReturnLine],
+    created_by: uuid.UUID,
+    business_date: dt.date | None = None,
+) -> None:
+    """Damaged or lost items written out of stock (cylinders full/empty, or accessories)."""
+    bd = business_date or dt.date.today()
+    try:
+        for line in lines:
+            if line.cylinder_type_id is not None and line.condition == "full":
+                # Full cylinders also live in the inventory table that sales draw from.
+                inv = await db.scalar(
+                    select(Inventory)
+                    .where(Inventory.cylinder_type_id == line.cylinder_type_id)
+                    .with_for_update()
+                )
+                if inv is None or inv.quantity < line.qty:
+                    raise InsufficientStock(str(line.cylinder_type_id))
+                inv.quantity -= line.qty
+                inv.version += 1
+            db.add(
+                StockLedger(
+                    cylinder_type_id=line.cylinder_type_id,
+                    accessory_id=line.accessory_id,
+                    condition=line.condition,
+                    delta=-line.qty,
+                    reason="return",
+                    business_date=bd,
+                    note=line.note,
+                    created_by=created_by,
+                )
+            )
+        await db.commit()
+    except InsufficientStock:
+        await db.rollback()
+        raise
+    except IntegrityError as exc:
+        await db.rollback()
+        raise InvalidReference("one or more cylinder types or accessories are invalid") from exc
 
 
 _CYL_OVERVIEW = text(

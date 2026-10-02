@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
-from app.schemas.stock import Ac4Request, ErvRequest, StockOverview
+from app.schemas.stock import Ac4Request, ErvRequest, ReturnRequest, StockOverview
 from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
 from app.services import inventory as inventory_service
 from app.services import stock as stock_service
@@ -65,6 +65,29 @@ async def stock_erv(
             created_by=current_user.id,
             business_date=body.business_date,
         )
+    except stock_service.InvalidReference as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await stock_service.overview(db, body.business_date or dt.date.today())
+
+
+@router.post("/stock/return", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
+async def stock_return(
+    body: ReturnRequest,
+    current_user: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StockOverview:
+    """return — damaged or lost cylinders (full/empty) or accessories taken out of stock."""
+    try:
+        await stock_service.record_return(
+            db,
+            lines=body.lines,
+            created_by=current_user.id,
+            business_date=body.business_date,
+        )
+    except stock_service.InsufficientStock as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="not enough full cylinders in stock to return"
+        ) from exc
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await stock_service.overview(db, body.business_date or dt.date.today())

@@ -598,6 +598,35 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /v1/stock/return:
+    post:
+      tags:
+      - stock
+      summary: Stock Return
+      description: return — damaged or lost cylinders (full/empty) or accessories
+        taken out of stock.
+      operationId: stock_return_v1_stock_return_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockOverview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /v1/inventory:
     get:
       tags:
@@ -3916,6 +3945,62 @@ components:
       required:
       - refresh_token
       title: RefreshRequest
+    ReturnLine:
+      properties:
+        cylinder_type_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cylinder Type Id
+        accessory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Accessory Id
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - empty
+          - type: 'null'
+          title: Condition
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - qty
+      title: ReturnLine
+      description: 'One damaged/lost item: a cylinder (full or empty) or an accessory.'
+    ReturnRequest:
+      properties:
+        business_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Business Date
+        lines:
+          items:
+            $ref: '#/components/schemas/ReturnLine'
+          type: array
+          minItems: 1
+          title: Lines
+      type: object
+      required:
+      - lines
+      title: ReturnRequest
+      description: Damaged or lost items taken out of stock.
     SaleCreate:
       properties:
         delivery_id:

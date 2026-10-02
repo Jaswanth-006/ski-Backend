@@ -10,7 +10,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import ColumnElement, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,17 +35,16 @@ class InvalidBank(Exception):
     """The referenced bank does not exist."""
 
 
-def _active_filter(stmt: Select[Any], model: Any, active: str) -> Select[Any]:
+def _active_clause(model: Any, active: str) -> ColumnElement[bool]:
+    """Filter for the ``active`` query param: "all", "false"/"0", or (default) active only."""
     if active == "all":
-        return stmt
-    if active in ("false", "0"):
-        return stmt.where(model.is_active.is_(False))
-    return stmt.where(model.is_active.is_(True))
+        return true()
+    return model.is_active.is_(active not in ("false", "0"))  # type: ignore[no-any-return]
 
 
 # ---- Banks ----
 async def list_banks(db: AsyncSession, active: str = "true") -> list[Bank]:
-    stmt = _active_filter(select(Bank), Bank, active).order_by(Bank.name)
+    stmt = select(Bank).where(_active_clause(Bank, active)).order_by(Bank.name)
     return list(await db.scalars(stmt))
 
 
@@ -81,7 +80,9 @@ async def update_bank(db: AsyncSession, bank_id: uuid.UUID, data: BankUpdate) ->
 # ---- Bank accounts ----
 async def list_bank_accounts(db: AsyncSession, active: str = "true") -> list[BankAccountOut]:
     stmt = select(BankAccount, Bank.name).join(Bank, Bank.id == BankAccount.bank_id)
-    stmt = _active_filter(stmt, BankAccount, active).order_by(Bank.name, BankAccount.account_type)
+    stmt = stmt.where(_active_clause(BankAccount, active)).order_by(
+        Bank.name, BankAccount.account_type
+    )
     rows = (await db.execute(stmt)).all()
     balances = await bank_account_balances(db)
     return [
@@ -143,7 +144,7 @@ async def update_bank_account(
 
 # ---- Vendors ----
 async def list_vendors(db: AsyncSession, active: str = "true") -> list[Vendor]:
-    stmt = _active_filter(select(Vendor), Vendor, active).order_by(Vendor.name)
+    stmt = select(Vendor).where(_active_clause(Vendor, active)).order_by(Vendor.name)
     return list(await db.scalars(stmt))
 
 
