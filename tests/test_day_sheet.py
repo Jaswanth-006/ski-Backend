@@ -76,6 +76,7 @@ async def _post_sale(
         "/v1/sales",
         headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
         json={
+            "invoice_no": f"T-{uuid.uuid4()}",
             "delivery_id": delivery_id,
             "business_date": DAY,
             "lines": [{"cylinder_type_id": type_id, "qty": 3}],  # revenue 3000

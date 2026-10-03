@@ -107,6 +107,7 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
             json={
+                "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": DS,
                 "lines": [{"cylinder_type_id": type_id, "qty": 300}],

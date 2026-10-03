@@ -25,6 +25,8 @@ async def create_sale(
 ) -> SaleOut:
     try:
         return await sales_service.create_and_post_sale(db, body, idempotency_key, current_user)
+    except sales_service.DuplicateInvoice as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except sales_service.DayClosed as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="the day sheet is closed") from exc
     except sales_service.NoPriceForDate as exc:

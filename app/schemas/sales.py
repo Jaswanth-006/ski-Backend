@@ -6,7 +6,7 @@ import datetime as dt
 import uuid
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SaleLineIn(BaseModel):
@@ -21,6 +21,7 @@ class DenominationIn(BaseModel):
 
 
 class SaleCreate(BaseModel):
+    invoice_no: str = Field(min_length=1, max_length=50)  # unique across sales
     delivery_id: uuid.UUID | None = None  # a delivery boy…
     customer_id: uuid.UUID | None = None  # …or a corporate customer (exactly one)
     business_date: dt.date
@@ -28,7 +29,15 @@ class SaleCreate(BaseModel):
     denominations: list[DenominationIn] = Field(default_factory=list)
     upi_total: Decimal = Field(ge=0, default=Decimal(0))
     online_total: Decimal = Field(ge=0, default=Decimal(0))  # paid direct to the company
-    balance_total: Decimal = Field(ge=0, default=Decimal(0))  # uncollected — the boy owes it
+    balance_total: Decimal = Field(ge=0, default=Decimal(0))  # uncollected — the party owes it
+
+    @field_validator("invoice_no")
+    @classmethod
+    def _strip_invoice(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("invoice number is required")
+        return v
 
     @model_validator(mode="after")
     def _one_party(self) -> SaleCreate:
@@ -50,6 +59,7 @@ class SaleLineOut(BaseModel):
 
 class SaleOut(BaseModel):
     id: uuid.UUID
+    invoice_no: str | None  # None only for sales recorded before invoice numbers
     delivery_id: uuid.UUID | None
     customer_id: uuid.UUID | None
     party_kind: str  # 'delivery' | 'customer'
@@ -62,6 +72,6 @@ class SaleOut(BaseModel):
     cash_total: Decimal
     upi_total: Decimal
     online_total: Decimal
-    balance_total: Decimal  # uncollected — added to the boy's balance
+    balance_total: Decimal  # uncollected — added to the boy's or customer's balance
     revenue_total: Decimal
     settled_total: Decimal  # cash + upi handed in

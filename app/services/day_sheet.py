@@ -22,7 +22,7 @@ from app.schemas.day_sheet import (
     Denomination,
     StockSummary,
 )
-from app.services import audit, cashier_box, delivery_balances, stock_loads
+from app.services import audit, cashier_box, customer_balances, delivery_balances, stock_loads
 
 
 class DayAlreadyClosed(Exception):
@@ -150,11 +150,13 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
 
     # Corporate customers who bought directly from the warehouse that day.
     customers = (await db.execute(_CUSTOMERS_WITH_SALES, {"on_date": on_date})).mappings().all()
+    balance_by_customer = await customer_balances.charges_on(db, on_date)
     for c in customers:
         a = agg.get(c["id"])
         cash = Decimal(a["cash"]) if a else Decimal(0)
         upi = Decimal(a["upi"]) if a else Decimal(0)
         online = Decimal(a["online"]) if a else Decimal(0)
+        balance = balance_by_customer.get(c["id"], Decimal(0))
         notes = denom_by_driver.get(c["id"], {})
         rows.append(
             DaySheetRow(
@@ -171,7 +173,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 total=cash + upi,
                 expense=Decimal(0),
                 net=cash + upi,
-                balance=Decimal(0),
+                balance=balance,
                 handed=cash + upi,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
