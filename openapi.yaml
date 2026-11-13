@@ -4589,6 +4589,11 @@ components:
         settled_total:
           type: string
           title: Settled Total
+        denominations:
+          items:
+            $ref: '#/components/schemas/DenominationIn'
+          type: array
+          title: Denominations
         cancelled_at:
           anyOf:
           - type: string

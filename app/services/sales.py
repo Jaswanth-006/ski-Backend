@@ -30,7 +30,7 @@ from app.db.models import (
     StockLedger,
     User,
 )
-from app.schemas.sales import SaleCreate, SaleLineOut, SaleOut
+from app.schemas.sales import DenominationIn, SaleCreate, SaleLineOut, SaleOut
 from app.services import audit, delivery_other_sales, pricing
 
 # Note prefix on the balance charge a sale writes for its uncollected part (reports match on it).
@@ -473,6 +473,16 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         balance_total=sale.balance_total,
         revenue_total=revenue_total,
         settled_total=cash_total + sale.upi_total,
+        denominations=[
+            DenominationIn(note_value=d.note_value, note_count=d.note_count)
+            for d in (
+                await db.scalars(
+                    select(CashDenomination)
+                    .where(CashDenomination.sale_id == sale.id)
+                    .order_by(CashDenomination.note_value.desc())
+                )
+            ).all()
+        ],
         cancelled_at=sale.cancelled_at,
         cancel_reason=sale.cancel_reason,
     )

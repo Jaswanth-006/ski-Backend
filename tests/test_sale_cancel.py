@@ -139,6 +139,7 @@ async def test_cancel_and_edit_reverse_everything(client: tuple[AsyncClient, See
         assert cancelled.status_code == 200, cancelled.text
         assert cancelled.json()["status"] == "cancelled"
         assert cancelled.json()["cancel_reason"] == "wrong boy"
+        assert cancelled.json()["denominations"] == [{"note_value": 500, "note_count": 10}]
 
         # Stock, day sheet and balance are back as if the sale never happened.
         assert await _stock(http, admin, type_id) == (50, 50, 0)

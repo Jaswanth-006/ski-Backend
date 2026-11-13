@@ -77,6 +77,7 @@ class SaleOut(BaseModel):
     balance_total: Decimal  # uncollected — added to the boy's or customer's balance
     revenue_total: Decimal
     settled_total: Decimal  # cash + upi handed in
+    denominations: list[DenominationIn] = Field(default_factory=list)  # cash notes counted
     cancelled_at: dt.datetime | None = None
     cancel_reason: str | None = None
 
