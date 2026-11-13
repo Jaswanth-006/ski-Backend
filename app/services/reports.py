@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import User
 from app.schemas.reports import (
+    DeliveryLedgerOut,
+    DeliveryLedgerRow,
     DeliveryReportRow,
     DepositReportRow,
     ExpenseReportRow,
     StockReportRow,
 )
+from app.services.sales import SALE_CHARGE_NOTE
 
 _STOCK = text(
     """
@@ -39,10 +44,42 @@ _DELIVERY = text(
       COALESCE((SELECT SUM(sl.qty) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
                 WHERE s.delivery_id = u.id AND s.status = 'approved'
                   AND s.business_date BETWEEN :start AND :end), 0) AS full_cylinders,
-      COALESCE((SELECT SUM(sl.qty) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
+      COALESCE((SELECT SUM(sl.empty_qty) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id
                 WHERE s.delivery_id = u.id AND s.status = 'approved'
                   AND s.business_date BETWEEN :start AND :end), 0) AS empty_cylinders
     FROM users u WHERE u.role = 'delivery' ORDER BY u.name
+    """
+)
+
+_LEDGER_SALES = text(
+    """
+    SELECT s.business_date, s.created_at, s.invoice_no, s.upi_total, s.online_total,
+           s.balance_total,
+      COALESCE((SELECT SUM(qty) FROM sale_lines WHERE sale_id = s.id), 0) AS qty,
+      COALESCE((SELECT SUM(empty_qty) FROM sale_lines WHERE sale_id = s.id), 0) AS empty_qty,
+      COALESCE((SELECT SUM((unit_price + other_sales_per_unit) * qty)
+                FROM sale_lines WHERE sale_id = s.id), 0) AS amount,
+      COALESCE((SELECT SUM(note_value * note_count)
+                FROM cash_denominations WHERE sale_id = s.id), 0) AS cash
+    FROM sales s
+    WHERE s.delivery_id = :d AND s.status = 'approved'
+      AND s.business_date BETWEEN :start AND :end
+    """
+)
+
+_LEDGER_ENTRIES = text(
+    """
+    SELECT entry_date, created_at, kind, amount, note
+    FROM delivery_balances
+    WHERE delivery_id = :d AND entry_date BETWEEN :start AND :end
+      AND NOT (kind = 'charge' AND COALESCE(note, '') LIKE :sale_note)
+    """
+)
+
+_OPENING_BALANCE = text(
+    """
+    SELECT COALESCE(SUM(CASE WHEN kind = 'charge' THEN amount ELSE -amount END), 0)
+    FROM delivery_balances WHERE delivery_id = :d AND entry_date < :start
     """
 )
 
@@ -102,6 +139,78 @@ async def delivery_report(
         )
         for r in rows
     ]
+
+
+class DeliveryNotFound(Exception):
+    pass
+
+
+async def delivery_ledger(
+    db: AsyncSession, delivery_id: uuid.UUID, start: dt.date, end: dt.date
+) -> DeliveryLedgerOut:
+    """One delivery boy's statement: each sale and balance movement with a running balance."""
+    user = await db.get(User, delivery_id)
+    if user is None or user.role != "delivery":
+        raise DeliveryNotFound()
+    params = {"d": delivery_id, "start": start, "end": end}
+
+    # (sort key, row without balance, change to what he owes)
+    lines: list[tuple[tuple[dt.date, dt.datetime], DeliveryLedgerRow, Decimal]] = []
+    for r in (await db.execute(_LEDGER_SALES, params)).mappings().all():
+        row = DeliveryLedgerRow(
+            entry_date=r["business_date"],
+            kind="sale",
+            invoice_no=r["invoice_no"],
+            qty=int(r["qty"]),
+            empty_qty=int(r["empty_qty"]),
+            amount=Decimal(r["amount"]),
+            cash=Decimal(r["cash"]),
+            upi=Decimal(r["upi_total"]),
+            online=Decimal(r["online_total"]),
+            balance=Decimal(0),
+        )
+        lines.append(((r["business_date"], r["created_at"]), row, Decimal(r["balance_total"])))
+
+    # A sale's own balance charge is already on its sale line, so it isn't listed twice.
+    entries = await db.execute(_LEDGER_ENTRIES, {**params, "sale_note": f"{SALE_CHARGE_NOTE}%"})
+    for r in entries.mappings().all():
+        amount = Decimal(r["amount"])
+        is_charge = r["kind"] == "charge"
+        row = DeliveryLedgerRow(
+            entry_date=r["entry_date"],
+            kind="charge" if is_charge else "repayment",
+            note=r["note"],
+            amount=amount if is_charge else Decimal(0),
+            repaid=Decimal(0) if is_charge else amount,
+            balance=Decimal(0),
+        )
+        lines.append(((r["entry_date"], r["created_at"]), row, amount if is_charge else -amount))
+
+    lines.sort(key=lambda line: line[0])
+    opening = Decimal((await db.execute(_OPENING_BALANCE, params)).scalar_one())
+    running = opening
+    rows: list[DeliveryLedgerRow] = []
+    for _, row, change in lines:
+        running += change
+        row.balance = running
+        rows.append(row)
+
+    return DeliveryLedgerOut(
+        delivery_id=user.id,
+        delivery_name=user.name,
+        start=start,
+        end=end,
+        opening_balance=opening,
+        rows=rows,
+        total_qty=sum(r.qty for r in rows),
+        total_empty_qty=sum(r.empty_qty for r in rows),
+        total_amount=sum((r.amount for r in rows), Decimal(0)),
+        total_cash=sum((r.cash for r in rows), Decimal(0)),
+        total_upi=sum((r.upi for r in rows), Decimal(0)),
+        total_online=sum((r.online for r in rows), Decimal(0)),
+        total_repaid=sum((r.repaid for r in rows), Decimal(0)),
+        closing_balance=running,
+    )
 
 
 async def expense_report(db: AsyncSession, start: dt.date, end: dt.date) -> list[ExpenseReportRow]:

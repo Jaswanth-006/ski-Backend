@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -22,6 +24,40 @@ class DeliveryReportRow(BaseModel):
     sales: Decimal  # revenue collected (incl. per-boy other sales)
     full_cylinders: int  # full sold
     empty_cylinders: int  # empties collected back
+
+
+class DeliveryLedgerRow(BaseModel):
+    """One line of a delivery boy's statement: a sale, a balance repayment or a manual charge."""
+
+    entry_date: dt.date
+    kind: Literal["sale", "repayment", "charge"]
+    invoice_no: str | None = None
+    note: str | None = None
+    qty: int = 0  # full cylinders sold
+    empty_qty: int = 0  # empties collected back
+    amount: Decimal = Decimal(0)  # sale value, or a manual charge
+    cash: Decimal = Decimal(0)
+    upi: Decimal = Decimal(0)
+    online: Decimal = Decimal(0)  # billed online, paid to the company
+    repaid: Decimal = Decimal(0)
+    balance: Decimal  # what he owes after this line
+
+
+class DeliveryLedgerOut(BaseModel):
+    delivery_id: uuid.UUID
+    delivery_name: str
+    start: dt.date
+    end: dt.date
+    opening_balance: Decimal  # owed before `start`
+    rows: list[DeliveryLedgerRow]
+    total_qty: int
+    total_empty_qty: int
+    total_amount: Decimal
+    total_cash: Decimal
+    total_upi: Decimal
+    total_online: Decimal
+    total_repaid: Decimal
+    closing_balance: Decimal
 
 
 class ExpenseReportRow(BaseModel):

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_replica_db, require_roles
 from app.db.models import User
 from app.schemas.reports import (
+    DeliveryLedgerOut,
     DeliveryReportRow,
     DepositReportRow,
     ExpenseReportRow,
@@ -40,6 +42,20 @@ async def delivery_report(
     db: AsyncSession = Depends(get_replica_db),
 ) -> list[DeliveryReportRow]:
     return await reports_service.delivery_report(db, start, end)
+
+
+@router.get("/reports/delivery/{delivery_id}", response_model=DeliveryLedgerOut)
+async def delivery_ledger(
+    delivery_id: uuid.UUID,
+    start: dt.date,
+    end: dt.date,
+    _: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_replica_db),
+) -> DeliveryLedgerOut:
+    try:
+        return await reports_service.delivery_ledger(db, delivery_id, start, end)
+    except reports_service.DeliveryNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="delivery person not found") from exc
 
 
 @router.get("/reports/expenses", response_model=list[ExpenseReportRow])

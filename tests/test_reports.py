@@ -167,3 +167,92 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
         assert float(dep["total"]) == 1000 and dep["kind"] == "vendor"
     finally:
         await _cleanup()
+
+
+async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -> None:
+    """Per-delivery-boy statement: opening balance, sale lines, repayments, running balance."""
+    http, users = client
+    await _cleanup()
+    admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
+    boy = str(users.delivery_id)
+    before, after = (D - dt.timedelta(days=1)).isoformat(), (D + dt.timedelta(days=1)).isoformat()
+    try:
+        type_id = (
+            await http.post(
+                "/v1/cylinder-types", headers=admin, json={"code": TYPE_CODE, "label": "Rep"}
+            )
+        ).json()["id"]
+        await http.put(
+            "/v1/prices",
+            headers=admin,
+            json={"cylinder_type_id": type_id, "unit_price": 1000, "effective_date": "2000-01-01"},
+        )
+        await http.post(
+            "/v1/stock/ac4",
+            headers=admin,
+            json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 50}]},
+        )
+        # Owed 500 from before the range.
+        await http.post(
+            "/v1/delivery-balances",
+            headers=admin,
+            json={"delivery_id": boy, "amount": 500, "entry_date": before, "kind": "charge"},
+        )
+        # 10 × 1000 = 10000 = cash 2500 + upi 2500 + online 1000 + balance 4000; 8 empties back.
+        sale = await http.post(
+            "/v1/sales",
+            headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "invoice_no": "ZZ-rep-INV1",
+                "delivery_id": boy,
+                "business_date": DS,
+                "lines": [{"cylinder_type_id": type_id, "qty": 10, "empty_qty": 8}],
+                "denominations": [{"note_value": 500, "note_count": 5}],
+                "upi_total": 2500,
+                "online_total": 1000,
+                "balance_total": 4000,
+            },
+        )
+        assert sale.status_code == 201, sale.text
+        await http.post(
+            "/v1/delivery-balances",
+            headers=admin,
+            json={
+                "delivery_id": boy,
+                "amount": 3000,
+                "entry_date": after,
+                "kind": "repayment",
+                "note": "paid at office",
+            },
+        )
+
+        res = await http.get(f"/v1/reports/delivery/{boy}?start={DS}&end={after}", headers=admin)
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert float(body["opening_balance"]) == 500
+        assert [r["kind"] for r in body["rows"]] == ["sale", "repayment"]
+        s, rp = body["rows"]
+        assert s["invoice_no"] == "ZZ-rep-INV1"
+        assert (s["qty"], s["empty_qty"]) == (10, 8)
+        assert [float(s[k]) for k in ("amount", "cash", "upi", "online", "balance")] == [
+            10000,
+            2500,
+            2500,
+            1000,
+            4500,
+        ]
+        assert float(rp["repaid"]) == 3000 and rp["note"] == "paid at office"
+        assert float(rp["balance"]) == 1500
+        assert float(body["total_amount"]) == 10000 and float(body["total_repaid"]) == 3000
+        assert float(body["closing_balance"]) == 1500
+
+        # The overall delivery report counts empties actually returned.
+        deliv = next(r for r in await _report(http, admin, "delivery") if r["delivery_id"] == boy)
+        assert (deliv["full_cylinders"], deliv["empty_cylinders"]) == (10, 8)
+
+        missing = await http.get(
+            f"/v1/reports/delivery/{users.admin_id}?start={DS}&end={DS}", headers=admin
+        )
+        assert missing.status_code == 404
+    finally:
+        await _cleanup()

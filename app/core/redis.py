@@ -12,7 +12,5 @@ from app.core.config import settings
 
 
 def get_redis() -> Redis:
-    client: Redis = from_url(  # type: ignore[no-untyped-call]
-        settings.redis_url, encoding="utf-8", decode_responses=True
-    )
+    client: Redis = from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
     return client

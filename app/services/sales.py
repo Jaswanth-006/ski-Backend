@@ -33,6 +33,9 @@ from app.db.models import (
 from app.schemas.sales import SaleCreate, SaleLineOut, SaleOut
 from app.services import audit, delivery_other_sales, pricing
 
+# Note prefix on the balance charge a sale writes for its uncollected part (reports match on it).
+SALE_CHARGE_NOTE = "sale balance (uncollected)"
+
 
 class DuplicateInvoice(Exception):
     def __init__(self, invoice_no: str) -> None:
@@ -199,7 +202,7 @@ async def create_and_post_sale(
         db.add(CashLedger(sale_id=sale.id, amount=data.online_total, kind="online"))
     # The uncollected balance is money the delivery boy / customer owes → their balance ledger.
     if data.balance_total:
-        note = f"sale balance (uncollected) · invoice {data.invoice_no}"
+        note = f"{SALE_CHARGE_NOTE} · invoice {data.invoice_no}"
         if data.delivery_id is not None:
             db.add(
                 DeliveryBalance(
