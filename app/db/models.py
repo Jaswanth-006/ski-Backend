@@ -189,7 +189,9 @@ class StockLedger(Base):
 class Sale(Base):
     __tablename__ = "sales"
     __table_args__ = (
-        CheckConstraint("status IN ('pending','approved','rejected')", name="ck_sales_status"),
+        CheckConstraint(
+            "status IN ('pending','approved','rejected','cancelled')", name="ck_sales_status"
+        ),
         CheckConstraint("upi_total >= 0", name="ck_sales_upi_nonneg"),
         CheckConstraint("online_total >= 0", name="ck_sales_online_nonneg"),
         CheckConstraint("balance_total >= 0", name="ck_sales_balance_nonneg"),
@@ -205,7 +207,7 @@ class Sale(Base):
             "uq_sales_invoice_no",
             "invoice_no",
             unique=True,
-            postgresql_where=text("invoice_no IS NOT NULL"),
+            postgresql_where=text("invoice_no IS NOT NULL AND status <> 'cancelled'"),
         ),
     )
 
@@ -244,6 +246,11 @@ class Sale(Base):
     approved_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
+    cancelled_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class SaleLine(Base):
@@ -312,6 +319,10 @@ class DeliveryBalance(Base):
     entry_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False)  # 'charge' | 'repayment'
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set on the charge a sale writes for its unpaid part; cancelling the sale removes it.
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
@@ -339,6 +350,9 @@ class CustomerBalance(Base):
     entry_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False)  # 'charge' | 'repayment'
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

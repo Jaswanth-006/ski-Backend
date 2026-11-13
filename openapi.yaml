@@ -1369,6 +1369,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/sales/{sale_id}/cancel:
+    post:
+      tags:
+      - sales
+      summary: Cancel Sale
+      operationId: cancel_sale_v1_sales__sale_id__cancel_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sale_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sale Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleCancel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/sales/{sale_id}/edit:
+    post:
+      tags:
+      - sales
+      summary: Edit Sale
+      description: 'Replace a sale with a corrected one: the original is cancelled,
+        the new one posted.'
+      operationId: edit_sale_v1_sales__sale_id__edit_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sale_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sale Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleEdit'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/sales/{sale_id}:
     get:
       tags:
@@ -4289,6 +4368,17 @@ components:
       - lines
       title: ReturnRequest
       description: Damaged or lost items taken out of stock.
+    SaleCancel:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+      type: object
+      required:
+      - reason
+      title: SaleCancel
     SaleCreate:
       properties:
         invoice_no:
@@ -4350,6 +4440,21 @@ components:
       - business_date
       - lines
       title: SaleCreate
+    SaleEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        sale:
+          $ref: '#/components/schemas/SaleCreate'
+      type: object
+      required:
+      - reason
+      - sale
+      title: SaleEdit
+      description: Edit = the corrected sale plus why the original was wrong.
     SaleLineIn:
       properties:
         cylinder_type_id:
@@ -4484,6 +4589,17 @@ components:
         settled_total:
           type: string
           title: Settled Total
+        cancelled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Cancelled At
+        cancel_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Reason
       type: object
       required:
       - id
