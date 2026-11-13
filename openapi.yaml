@@ -3215,6 +3215,12 @@ components:
         empties:
           type: integer
           title: Empties
+        damaged:
+          type: integer
+          title: Damaged
+        amount:
+          type: string
+          title: Amount
         loaded:
           type: integer
           title: Loaded
@@ -3257,6 +3263,8 @@ components:
       - party_kind
       - cylinders
       - empties
+      - damaged
+      - amount
       - loaded
       - returned
       - cash
@@ -3277,6 +3285,12 @@ components:
         empties:
           type: integer
           title: Empties
+        damaged:
+          type: integer
+          title: Damaged
+        amount:
+          type: string
+          title: Amount
         cash:
           type: string
           title: Cash
@@ -3305,6 +3319,8 @@ components:
       required:
       - cylinders
       - empties
+      - damaged
+      - amount
       - cash
       - upi
       - online
@@ -4360,6 +4376,11 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Empty Qty
+        damaged_qty:
+          type: integer
+          minimum: 0.0
+          title: Damaged Qty
+          default: 0
       type: object
       required:
       - cylinder_type_id
@@ -4383,6 +4404,9 @@ components:
         empty_qty:
           type: integer
           title: Empty Qty
+        damaged_qty:
+          type: integer
+          title: Damaged Qty
         unit_price:
           type: string
           title: Unit Price
@@ -4399,6 +4423,7 @@ components:
       - label
       - qty
       - empty_qty
+      - damaged_qty
       - unit_price
       - other_sales_per_unit
       - line_total

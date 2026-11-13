@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from io import BytesIO
 
 from app.core.config import settings
 from app.db.models import (
@@ -15,6 +16,7 @@ from app.db.models import (
     StockLedger,
 )
 from httpx import AsyncClient
+from openpyxl import load_workbook
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -79,7 +81,8 @@ async def _post_sale(
             "invoice_no": f"T-{uuid.uuid4()}",
             "delivery_id": delivery_id,
             "business_date": DAY,
-            "lines": [{"cylinder_type_id": type_id, "qty": 3}],  # revenue 3000
+            # revenue 3000; 2 empties back, 1 came back damaged
+            "lines": [{"cylinder_type_id": type_id, "qty": 3, "empty_qty": 2, "damaged_qty": 1}],
             "denominations": [{"note_value": 1000, "note_count": 2}],  # 2000 cash
             "upi_total": 1000,  # collected 3000
         },
@@ -99,9 +102,27 @@ async def test_day_sheet_consolidates_and_closes(client: tuple[AsyncClient, Seed
         sheet = (await http.get(f"/v1/day-sheet/{DAY}", headers=admin)).json()
         assert sheet["is_closed"] is False
         row = next(r for r in sheet["rows"] if r["delivery_id"] == str(users.delivery_id))
-        assert row["cylinders"] == 3
+        assert (row["cylinders"], row["empties"], row["damaged"]) == (3, 2, 1)
+        assert float(row["amount"]) == 3000
         assert float(row["cash"]) == 2000 and float(row["upi"]) == 1000
         assert float(sheet["totals"]["total"]) == 3000
+        assert sheet["totals"]["damaged"] == 1 and float(sheet["totals"]["amount"]) == 3000
+
+        # Excel export carries the same columns.
+        xlsx = await http.get(f"/v1/day-sheet/{DAY}/export.xlsx", headers=admin)
+        assert xlsx.status_code == 200
+        ws = load_workbook(BytesIO(xlsx.content)).active
+        assert [c.value for c in ws[4]] == [
+            "Party",
+            "Sold",
+            "Empty",
+            "Return",
+            "Total amount",
+            "UPI",
+            "Cash",
+            "Online",
+            "Balance",
+        ]
 
         # Close the day → locked.
         closed = await http.post(f"/v1/day-sheet/{DAY}/close", headers=admin)

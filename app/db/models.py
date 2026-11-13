@@ -251,6 +251,7 @@ class SaleLine(Base):
     __table_args__ = (
         CheckConstraint("qty >= 0", name="ck_sale_lines_qty_nonneg"),
         CheckConstraint("empty_qty >= 0", name="ck_sale_lines_empty_nonneg"),
+        CheckConstraint("damaged_qty >= 0", name="ck_sale_lines_damaged_nonneg"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -262,6 +263,7 @@ class SaleLine(Base):
     )
     qty: Mapped[int] = mapped_column(Integer, nullable=False)
     empty_qty: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    damaged_qty: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     other_sales_per_unit: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, server_default=text("0")
