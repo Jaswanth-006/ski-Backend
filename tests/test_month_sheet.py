@@ -64,37 +64,45 @@ async def test_month_sheet_by_date_with_online_and_empties(
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
             },
         )
-        # 10 cyl × 100 = 1000 = cash 500 + upi 200 + online 300.
-        await http.post(
+        # 10 cyl × 100 = 1000 = cash 500 + upi 200 + online 100 + balance 200;
+        # 8 empties back, 1 damaged.
+        sale = await http.post(
             "/v1/sales",
             headers={**admin, "Idempotency-Key": str(uuid.uuid4())},
             json={
                 "invoice_no": f"T-{uuid.uuid4()}",
                 "delivery_id": str(users.delivery_id),
                 "business_date": DAY.isoformat(),
-                "lines": [{"cylinder_type_id": type_id, "qty": 10}],
+                "lines": [
+                    {"cylinder_type_id": type_id, "qty": 10, "empty_qty": 8, "damaged_qty": 1}
+                ],
                 "denominations": [{"note_value": 500, "note_count": 1}],
                 "upi_total": 200,
-                "online_total": 300,
+                "online_total": 100,
+                "balance_total": 200,
             },
         )
-        await http.post(
-            "/v1/stock/erv",
-            headers=admin,
-            json={
-                "business_date": DAY.isoformat(),
-                "lines": [{"cylinder_type_id": type_id, "qty": 4}],
-            },
-        )
+        assert sale.status_code == 201, sale.text
 
         ms = (await http.get(f"/v1/month-sheet/{DAY.year}/{DAY.month}", headers=admin)).json()
         day = next(d for d in ms["days"] if d["business_date"] == DAY.isoformat())
-        assert day["cylinders"] == 10  # full sold
-        assert day["empty_returned"] == 4  # erv to plant
-        assert float(day["cash"]) == 500
-        assert float(day["upi"]) == 200
-        assert float(day["online"]) == 300
-        assert float(day["total"]) == 700  # cash + upi (online excluded)
-        assert any(dn["note_value"] == 500 and dn["note_count"] == 1 for dn in day["denominations"])
+        assert (day["cylinders"], day["empties"], day["damaged"]) == (10, 8, 1)
+        assert [float(day[k]) for k in ("amount", "upi", "cash", "online", "balance")] == [
+            1000,
+            200,
+            500,
+            100,
+            200,
+        ]
+
+        # The month row is that day sheet's final totals.
+        ds = (await http.get(f"/v1/day-sheet/{DAY.isoformat()}", headers=admin)).json()["totals"]
+        assert (ds["cylinders"], ds["empties"], ds["damaged"]) == (
+            day["cylinders"],
+            day["empties"],
+            day["damaged"],
+        )
+        for k in ("amount", "upi", "cash", "online", "balance"):
+            assert float(ds[k]) == float(day[k]), k
     finally:
         await _cleanup()
