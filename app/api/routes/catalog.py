@@ -21,6 +21,7 @@ from app.schemas.catalog import (
     ExpenseItemOut,
     ExpenseItemUpdate,
 )
+from app.services import audit
 from app.services import catalog as catalog_service
 
 router = APIRouter(tags=["catalog"])
@@ -38,22 +39,31 @@ async def list_cylinder_types(
 @router.post("/cylinder-types", response_model=CylinderTypeOut, status_code=status.HTTP_201_CREATED)
 async def create_cylinder_type(
     body: CylinderTypeCreate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CylinderType:
     try:
-        return await catalog_service.create_cylinder_type(db, body)
+        row = await catalog_service.create_cylinder_type(db, body)
     except catalog_service.CodeAlreadyExists as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="a cylinder type with this code already exists"
         ) from exc
+    await audit.record(
+        db,
+        actor.id,
+        "cylinder_type.create",
+        "cylinder_type",
+        row.id,
+        new=body.model_dump(mode="json"),
+    )
+    return row
 
 
 @router.patch("/cylinder-types/{type_id}", response_model=CylinderTypeOut)
 async def update_cylinder_type(
     type_id: uuid.UUID,
     body: CylinderTypeUpdate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CylinderType:
     try:
@@ -64,13 +74,21 @@ async def update_cylinder_type(
         ) from exc
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="cylinder type not found")
+    await audit.record(
+        db,
+        actor.id,
+        "cylinder_type.update",
+        "cylinder_type",
+        type_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
     return row
 
 
 @router.delete("/cylinder-types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_cylinder_type(
     type_id: uuid.UUID,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     try:
@@ -82,6 +100,7 @@ async def delete_cylinder_type(
             status.HTTP_409_CONFLICT,
             detail="this variety is used by prices, stock, or sales — deactivate it instead",
         ) from exc
+    await audit.record(db, actor.id, "cylinder_type.delete", "cylinder_type", type_id)
 
 
 # ---- Expense items (Phase 1-D) ----
@@ -101,21 +120,38 @@ async def create_expense_item(
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseItem:
     try:
-        return await catalog_service.create_expense_item(db, body, current_user.id)
+        item = await catalog_service.create_expense_item(db, body, current_user.id)
     except catalog_service.NameAlreadyExists as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="an expense item with this name already exists"
         ) from exc
+    await audit.record(
+        db,
+        current_user.id,
+        "expense_item.create",
+        "expense_item",
+        item.id,
+        new=body.model_dump(mode="json"),
+    )
+    return item
 
 
 @router.patch("/expense-items/{item_id}", response_model=ExpenseItemOut)
 async def update_expense_item(
     item_id: uuid.UUID,
     body: ExpenseItemUpdate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseItem:
     row = await catalog_service.update_expense_item(db, item_id, body)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="expense item not found")
+    await audit.record(
+        db,
+        actor.id,
+        "expense_item.update",
+        "expense_item",
+        item_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
     return row

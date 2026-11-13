@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_roles
+from app.core.clock import business_today
 from app.db.models import User
 from app.schemas.pricing import PriceBulkSet, PriceOut, PriceSet
 from app.services import pricing as pricing_service
@@ -25,7 +26,7 @@ async def get_prices(
     _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PriceOut]:
-    on_date = date or dt.date.today()
+    on_date = date or business_today()
     return await pricing_service.prices_for_date(db, on_date)
 
 

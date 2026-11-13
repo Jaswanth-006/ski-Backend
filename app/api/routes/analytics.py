@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_replica_db
+from app.core.clock import business_today
 from app.db.models import User
 from app.schemas.analytics import CollectionsTrendOut, CylinderMovementOut, EodOut
 from app.services import analytics as analytics_service
@@ -21,7 +22,7 @@ async def eod(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_replica_db),
 ) -> EodOut:
-    on_date = date or dt.date.today()
+    on_date = date or business_today()
     include_net = current_user.role == "super_admin"
     return await analytics_service.eod(db, on_date, include_net_profit=include_net)
 
@@ -34,7 +35,7 @@ async def collections(
     db: AsyncSession = Depends(get_replica_db),
 ) -> CollectionsTrendOut:
     """Daily cash + UPI collections for the `days`-day window ending on `date` (default today)."""
-    end_date = date or dt.date.today()
+    end_date = date or business_today()
     return await analytics_service.collections_trend(db, end_date, days=days)
 
 
@@ -45,5 +46,5 @@ async def cylinder_movement(
     db: AsyncSession = Depends(get_replica_db),
 ) -> CylinderMovementOut:
     """Per-type cylinders loaded / sold / left in the warehouse for `date` (default today)."""
-    on_date = date or dt.date.today()
+    on_date = date or business_today()
     return await analytics_service.cylinder_movement(db, on_date)

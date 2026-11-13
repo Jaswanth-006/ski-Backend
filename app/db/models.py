@@ -323,6 +323,7 @@ class DeliveryBalance(Base):
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
     )
+    method: Mapped[str | None] = mapped_column(Text, nullable=True)  # repayments: cash | upi
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
@@ -353,6 +354,7 @@ class CustomerBalance(Base):
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
     )
+    method: Mapped[str | None] = mapped_column(Text, nullable=True)  # repayments: cash | upi
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
@@ -454,6 +456,10 @@ class Expense(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    # A route expense entered with a sale: settles part of it, removed if the sale is cancelled.
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
     )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False

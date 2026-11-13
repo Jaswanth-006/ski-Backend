@@ -24,6 +24,7 @@ from app.schemas.banking import (
     VendorOut,
     VendorUpdate,
 )
+from app.services import audit
 from app.services import banking as banking_service
 
 router = APIRouter(tags=["banking"])
@@ -45,22 +46,31 @@ async def list_banks(
 @router.post("/banks", response_model=BankOut, status_code=status.HTTP_201_CREATED)
 async def create_bank(
     body: BankCreate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> Bank:
     try:
-        return await banking_service.create_bank(db, body)
+        result = await banking_service.create_bank(db, body)
     except banking_service.NameAlreadyExists as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="a bank with this name exists"
         ) from exc
+    await audit.record(
+        db,
+        actor.id,
+        "bank.create",
+        "bank",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.patch("/banks/{bank_id}", response_model=BankOut)
 async def update_bank(
     bank_id: uuid.UUID,
     body: BankUpdate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> Bank:
     try:
@@ -71,6 +81,14 @@ async def update_bank(
         ) from exc
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="bank not found")
+    await audit.record(
+        db,
+        actor.id,
+        "bank.update",
+        "bank",
+        bank_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
     return row
 
 
@@ -87,25 +105,42 @@ async def list_bank_accounts(
 @router.post("/bank-accounts", response_model=BankAccountOut, status_code=status.HTTP_201_CREATED)
 async def create_bank_account(
     body: BankAccountCreate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> BankAccountOut:
     try:
-        return await banking_service.create_bank_account(db, body)
+        result = await banking_service.create_bank_account(db, body)
     except banking_service.InvalidBank as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid bank") from exc
+    await audit.record(
+        db,
+        actor.id,
+        "bank_account.create",
+        "bank_account",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.patch("/bank-accounts/{account_id}", response_model=BankAccountOut)
 async def update_bank_account(
     account_id: uuid.UUID,
     body: BankAccountUpdate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> BankAccountOut:
     row = await banking_service.update_bank_account(db, account_id, body)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="bank account not found")
+    await audit.record(
+        db,
+        actor.id,
+        "bank_account.update",
+        "bank_account",
+        account_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
     return row
 
 
@@ -122,22 +157,31 @@ async def list_vendors(
 @router.post("/vendors", response_model=VendorOut, status_code=status.HTTP_201_CREATED)
 async def create_vendor(
     body: VendorCreate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> Vendor:
     try:
-        return await banking_service.create_vendor(db, body)
+        result = await banking_service.create_vendor(db, body)
     except banking_service.NameAlreadyExists as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="a vendor with this name exists"
         ) from exc
+    await audit.record(
+        db,
+        actor.id,
+        "vendor.create",
+        "vendor",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.patch("/vendors/{vendor_id}", response_model=VendorOut)
 async def update_vendor(
     vendor_id: uuid.UUID,
     body: VendorUpdate,
-    _: User = Depends(require_roles(*_OWNER)),
+    actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
 ) -> Vendor:
     try:
@@ -148,4 +192,12 @@ async def update_vendor(
         ) from exc
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="vendor not found")
+    await audit.record(
+        db,
+        actor.id,
+        "vendor.update",
+        "vendor",
+        vendor_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
     return row

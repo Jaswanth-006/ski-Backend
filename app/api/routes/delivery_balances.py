@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_roles
@@ -14,6 +14,7 @@ from app.schemas.delivery_balances import (
     DeliveryBalanceEntryOut,
     DeliveryBalanceSummaryOut,
 )
+from app.services import day_lock
 from app.services import delivery_balances as service
 
 router = APIRouter(tags=["delivery-balances"])
@@ -46,4 +47,8 @@ async def create_balance_entry(
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> DeliveryBalanceEntryOut:
-    return await service.create_entry(db, body, current_user.id)
+    await day_lock.ensure_open(db, body.entry_date, current_user)
+    try:
+        return await service.create_entry(db, body, current_user.id)
+    except service.InvalidDeliveryPerson as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="delivery person not found") from exc

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -14,6 +14,29 @@ class SaleLineIn(BaseModel):
     qty: int = Field(ge=1)
     empty_qty: int | None = Field(default=None, ge=0)  # empties returned; defaults to qty
     damaged_qty: int = Field(default=0, ge=0)  # came back damaged or lost (not added to stock)
+
+
+def to_paise(v: Decimal) -> Decimal:
+    """Money arrives as JSON numbers (binary floats); keep it to whole paise."""
+    return Decimal(v).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+class SaleExpenseIn(BaseModel):
+    """A route expense the delivery boy paid out of this sale's collection (e.g. fuel)."""
+
+    item_id: uuid.UUID
+    amount: Decimal = Field(gt=0)
+
+    @field_validator("amount")
+    @classmethod
+    def _paise(cls, v: Decimal) -> Decimal:
+        return to_paise(v)
+
+
+class SaleExpenseOut(BaseModel):
+    item_id: uuid.UUID
+    item_name: str
+    amount: Decimal
 
 
 class DenominationIn(BaseModel):
@@ -31,6 +54,13 @@ class SaleCreate(BaseModel):
     upi_total: Decimal = Field(ge=0, default=Decimal(0))
     online_total: Decimal = Field(ge=0, default=Decimal(0))  # paid direct to the company
     balance_total: Decimal = Field(ge=0, default=Decimal(0))  # uncollected — the party owes it
+    # Delivery sales only: spent on the route from this collection; settles part of the sale.
+    expenses: list[SaleExpenseIn] = Field(default_factory=list)
+
+    @field_validator("upi_total", "online_total", "balance_total")
+    @classmethod
+    def _paise(cls, v: Decimal) -> Decimal:
+        return to_paise(v)
 
     @field_validator("invoice_no")
     @classmethod
@@ -44,6 +74,8 @@ class SaleCreate(BaseModel):
     def _one_party(self) -> SaleCreate:
         if (self.delivery_id is None) == (self.customer_id is None):
             raise ValueError("provide exactly one of delivery_id or customer_id")
+        if self.expenses and self.delivery_id is None:
+            raise ValueError("route expenses only apply to a delivery boy's sale")
         return self
 
 
@@ -77,6 +109,8 @@ class SaleOut(BaseModel):
     balance_total: Decimal  # uncollected — added to the boy's or customer's balance
     revenue_total: Decimal
     settled_total: Decimal  # cash + upi handed in
+    expenses: list[SaleExpenseOut] = Field(default_factory=list)  # route expenses settled here
+    expenses_total: Decimal = Decimal(0)
     denominations: list[DenominationIn] = Field(default_factory=list)  # cash notes counted
     cancelled_at: dt.datetime | None = None
     cancel_reason: str | None = None

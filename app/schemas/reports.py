@@ -39,6 +39,7 @@ class DeliveryLedgerRow(BaseModel):
     cash: Decimal = Decimal(0)
     upi: Decimal = Decimal(0)
     online: Decimal = Decimal(0)  # billed online, paid to the company
+    expenses: Decimal = Decimal(0)  # route expenses he paid out of this sale's collection
     repaid: Decimal = Decimal(0)
     balance: Decimal  # left unpaid on this sale (or the manual charge); 0 on repayments
 
@@ -55,6 +56,7 @@ class DeliveryLedgerOut(BaseModel):
     total_cash: Decimal
     total_upi: Decimal
     total_online: Decimal
+    total_expenses: Decimal
     total_repaid: Decimal
     total_balance: Decimal  # unpaid in the range minus repaid in the range
 

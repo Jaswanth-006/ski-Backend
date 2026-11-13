@@ -24,13 +24,21 @@ from app.db.models import (
     CylinderType,
     DaySheetStatus,
     DeliveryBalance,
+    Expense,
+    ExpenseItem,
     Inventory,
     Sale,
     SaleLine,
     StockLedger,
     User,
 )
-from app.schemas.sales import DenominationIn, SaleCreate, SaleLineOut, SaleOut
+from app.schemas.sales import (
+    DenominationIn,
+    SaleCreate,
+    SaleExpenseOut,
+    SaleLineOut,
+    SaleOut,
+)
 from app.services import audit, delivery_other_sales, pricing
 
 # Note prefix on the balance charge a sale writes for its uncollected part (reports match on it).
@@ -78,21 +86,27 @@ def reconcile(
     upi_total: Decimal,
     online_total: Decimal,
     balance_total: Decimal,
+    expenses_total: Decimal = Decimal(0),
 ) -> list[str]:
-    """Revenue tally: Σ(qty × unit_price) == cash + UPI + online + balance (01-BACKEND-PRD §7).
+    """Revenue tally: Σ(qty × unit_price) == cash + UPI + online + balance + route expenses.
 
-    Online is paid straight to the company; balance is the part the boy didn't hand over
-    (added to what he owes). Cash + UPI is what he physically settles.
+    Online is paid straight to the company; route expenses were spent by the boy out of the
+    collection; balance is the part he didn't hand over (added to what he owes). Cash + UPI is
+    what he physically settles.
     """
     flags: list[str] = []
-    collected = cash_total + upi_total + online_total + balance_total
+    collected = cash_total + upi_total + online_total + balance_total + expenses_total
     if collected != revenue:
         flags.append(
             f"revenue mismatch: sold {revenue} but accounted {collected} "
             f"(cash {cash_total} + upi {upi_total} + online {online_total} "
-            f"+ balance {balance_total})"
+            f"+ balance {balance_total} + expenses {expenses_total})"
         )
     return flags
+
+
+class InvalidParty(SaleError):
+    """The delivery person / customer / expense item on the sale does not exist."""
 
 
 class SaleNotFound(SaleError):
@@ -220,6 +234,7 @@ async def _reverse(db: AsyncSession, sale: Sale, reason: str, actor: User) -> No
                 )
             )
 
+    await db.execute(delete(Expense).where(Expense.sale_id == sale.id))
     await db.execute(delete(DeliveryBalance).where(DeliveryBalance.sale_id == sale.id))
     await db.execute(delete(CustomerBalance).where(CustomerBalance.sale_id == sale.id))
 
@@ -266,6 +281,15 @@ async def _post(
     )
     if taken is not None:
         raise DuplicateInvoice(data.invoice_no)
+    if data.delivery_id is not None:
+        person = await db.get(User, data.delivery_id)
+        if person is None or person.role != "delivery":
+            raise InvalidParty("delivery person not found")
+    elif await db.get(Customer, data.customer_id) is None:
+        raise InvalidParty("customer not found")
+    for e in data.expenses:
+        if await db.get(ExpenseItem, e.item_id) is None:
+            raise InvalidParty("expense item not found")
 
     sale = Sale(
         idempotency_key=idempotency_key,
@@ -355,9 +379,28 @@ async def _post(
         )
         cash_total += Decimal(denom.note_value * denom.note_count)
 
-    flags = reconcile(revenue, cash_total, data.upi_total, data.online_total, data.balance_total)
-    if flags and actor.role != "super_admin":
+    expenses_total = sum((e.amount for e in data.expenses), Decimal(0))
+    flags = reconcile(
+        revenue, cash_total, data.upi_total, data.online_total, data.balance_total, expenses_total
+    )
+    if flags:
+        # No override: an unbalanced sale would leave money unaccounted for.
         raise ReconciliationFailed(flags)
+
+    # Route expenses: recorded as expenses, but they never pass through the cashier box.
+    for e in data.expenses:
+        db.add(
+            Expense(
+                business_date=data.business_date,
+                item_id=e.item_id,
+                amount=e.amount,
+                method="cash",
+                note=f"route · invoice {data.invoice_no}",
+                delivery_id=data.delivery_id,
+                sale_id=sale.id,
+                created_by=actor.id,
+            )
+        )
 
     db.add(CashLedger(sale_id=sale.id, amount=cash_total, kind="cash"))
     db.add(CashLedger(sale_id=sale.id, amount=data.upi_total, kind="upi"))
@@ -411,7 +454,7 @@ async def _post(
             "upi": str(data.upi_total),
             "online": str(data.online_total),
             "balance": str(data.balance_total),
-            "override": bool(flags),
+            "expenses": str(expenses_total),
         },
     )
     return sale
@@ -445,6 +488,18 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
     cash_total = await db.scalar(
         select(CashLedger.amount).where(CashLedger.sale_id == sale.id, CashLedger.kind == "cash")
     ) or Decimal(0)
+
+    expenses = [
+        SaleExpenseOut(item_id=e.item_id, item_name=name, amount=e.amount)
+        for e, name in (
+            await db.execute(
+                select(Expense, ExpenseItem.name)
+                .join(ExpenseItem, ExpenseItem.id == Expense.item_id)
+                .where(Expense.sale_id == sale.id)
+                .order_by(Expense.created_at)
+            )
+        ).all()
+    ]
 
     if sale.customer_id is not None:
         party_kind = "customer"
@@ -483,6 +538,8 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
                 )
             ).all()
         ],
+        expenses=expenses,
+        expenses_total=sum((e.amount for e in expenses), Decimal(0)),
         cancelled_at=sale.cancelled_at,
         cancel_reason=sale.cancel_reason,
     )

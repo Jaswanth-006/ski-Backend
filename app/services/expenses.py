@@ -18,9 +18,17 @@ class InvalidExpenseItem(Exception):
     """The referenced expense item does not exist."""
 
 
+class InvalidDeliveryPerson(Exception):
+    """delivery_id is not a delivery person."""
+
+
 async def create_expense(
     db: AsyncSession, data: ExpenseCreate, created_by: uuid.UUID
 ) -> ExpenseOut:
+    if data.delivery_id is not None:
+        person = await db.get(User, data.delivery_id)
+        if person is None or person.role != "delivery":
+            raise InvalidDeliveryPerson(str(data.delivery_id))
     expense = Expense(
         business_date=data.business_date,
         item_id=data.item_id,

@@ -96,7 +96,7 @@ async def test_accessory_catalog_and_ac4_erv_overview(
         d2 = (await http.get(f"/v1/stock/overview?date={D2.isoformat()}", headers=admin)).json()
         assert _cyl_row(d2, TYPE_CODE)["full_opening"] == 100
 
-        # erv on D2: send 30 empties back to the plant.
+        # erv on D2: no empties have come back yet, so none can go to the plant.
         erv = await http.post(
             "/v1/stock/erv",
             headers=admin,
@@ -105,10 +105,10 @@ async def test_accessory_catalog_and_ac4_erv_overview(
                 "lines": [{"cylinder_type_id": type_id, "qty": 30}],
             },
         )
-        assert erv.status_code == 201
-        erow = _cyl_row(erv.json(), TYPE_CODE)
-        assert erow["empty_sent_to_plant"] == 30
-        assert erow["empty_closing"] == -30  # no customer returns yet (phase B adds those)
+        assert erv.status_code == 409
+        assert "not enough" in erv.json()["detail"]
+        d2 = (await http.get(f"/v1/stock/overview?date={D2.isoformat()}", headers=admin)).json()
+        assert _cyl_row(d2, TYPE_CODE)["empty_closing"] == 0  # nothing written
     finally:
         await _cleanup()
 
@@ -136,7 +136,18 @@ async def test_return_damaged_or_lost(client: tuple[AsyncClient, SeededUsers]) -
             },
         )
 
-        # Return 3 damaged full, 2 lost empties and 1 damaged accessory.
+        # Empties can't be written off when none are in stock.
+        no_empties = await http.post(
+            "/v1/stock/return",
+            headers=admin,
+            json={
+                "business_date": D1.isoformat(),
+                "lines": [{"cylinder_type_id": type_id, "condition": "empty", "qty": 2}],
+            },
+        )
+        assert no_empties.status_code == 409
+
+        # Return 3 damaged full and 1 damaged accessory.
         ret = await http.post(
             "/v1/stock/return",
             headers=admin,
@@ -144,7 +155,6 @@ async def test_return_damaged_or_lost(client: tuple[AsyncClient, SeededUsers]) -
                 "business_date": D1.isoformat(),
                 "lines": [
                     {"cylinder_type_id": type_id, "condition": "full", "qty": 3, "note": "damaged"},
-                    {"cylinder_type_id": type_id, "condition": "empty", "qty": 2, "note": "lost"},
                     {"accessory_id": acc_id, "qty": 1, "note": "damaged"},
                 ],
             },
@@ -152,7 +162,7 @@ async def test_return_damaged_or_lost(client: tuple[AsyncClient, SeededUsers]) -
         assert ret.status_code == 201
         row = _cyl_row(ret.json(), TYPE_CODE)
         assert row["full_closing"] == 47
-        assert row["empty_closing"] == -2
+        assert row["empty_closing"] == 0
         assert _acc_row(ret.json(), ACC_NAME)["closing"] == 9
 
         # The live inventory that sales draw from moves too.

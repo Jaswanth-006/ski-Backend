@@ -6,8 +6,9 @@ and the /v1 routers. Business routers arrive in later phases.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.middleware import RequestContextMiddleware
@@ -38,6 +39,7 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.observability import init_sentry
 from app.db.session import engine
+from app.services import day_lock
 
 
 def create_app() -> FastAPI:
@@ -49,6 +51,10 @@ def create_app() -> FastAPI:
         version=settings.version,
         description="System of record for an LPG distributorship. See 01-BACKEND-PRD.",
     )
+
+    @app.exception_handler(day_lock.DayLocked)
+    async def _day_locked(_: Request, exc: day_lock.DayLocked) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(

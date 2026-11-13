@@ -63,3 +63,16 @@ async def list_entries(
         )
         for log, actor_name in rows
     ]
+
+
+async def record(
+    db: AsyncSession,
+    actor_id: uuid.UUID,
+    action: str,
+    entity: str,
+    entity_id: str | uuid.UUID | None = None,
+    new: dict[str, Any] | None = None,
+) -> None:
+    """Write and commit an audit row for a change that has already been committed."""
+    await write(db, actor_id, action, entity, entity_id, new=new)
+    await db.commit()
