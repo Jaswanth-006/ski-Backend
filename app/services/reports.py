@@ -76,13 +76,6 @@ _LEDGER_ENTRIES = text(
     """
 )
 
-_OPENING_BALANCE = text(
-    """
-    SELECT COALESCE(SUM(CASE WHEN kind = 'charge' THEN amount ELSE -amount END), 0)
-    FROM delivery_balances WHERE delivery_id = :d AND entry_date < :start
-    """
-)
-
 _EXPENSES = text(
     """
     SELECT ei.id AS item_id, ei.name AS item_name,
@@ -148,14 +141,14 @@ class DeliveryNotFound(Exception):
 async def delivery_ledger(
     db: AsyncSession, delivery_id: uuid.UUID, start: dt.date, end: dt.date
 ) -> DeliveryLedgerOut:
-    """One delivery boy's statement: each sale and balance movement with a running balance."""
+    """One delivery boy's statement: each sale with what was left unpaid on it, plus repayments
+    and manual charges. Only the range counts — nothing is carried in from earlier days."""
     user = await db.get(User, delivery_id)
     if user is None or user.role != "delivery":
         raise DeliveryNotFound()
     params = {"d": delivery_id, "start": start, "end": end}
 
-    # (sort key, row without balance, change to what he owes)
-    lines: list[tuple[tuple[dt.date, dt.datetime], DeliveryLedgerRow, Decimal]] = []
+    lines: list[tuple[tuple[dt.date, dt.datetime], DeliveryLedgerRow]] = []
     for r in (await db.execute(_LEDGER_SALES, params)).mappings().all():
         row = DeliveryLedgerRow(
             entry_date=r["business_date"],
@@ -167,9 +160,9 @@ async def delivery_ledger(
             cash=Decimal(r["cash"]),
             upi=Decimal(r["upi_total"]),
             online=Decimal(r["online_total"]),
-            balance=Decimal(0),
+            balance=Decimal(r["balance_total"]),
         )
-        lines.append(((r["business_date"], r["created_at"]), row, Decimal(r["balance_total"])))
+        lines.append(((r["business_date"], r["created_at"]), row))
 
     # A sale's own balance charge is already on its sale line, so it isn't listed twice.
     entries = await db.execute(_LEDGER_ENTRIES, {**params, "sale_note": f"{SALE_CHARGE_NOTE}%"})
@@ -182,25 +175,19 @@ async def delivery_ledger(
             note=r["note"],
             amount=amount if is_charge else Decimal(0),
             repaid=Decimal(0) if is_charge else amount,
-            balance=Decimal(0),
+            balance=amount if is_charge else Decimal(0),
         )
-        lines.append(((r["entry_date"], r["created_at"]), row, amount if is_charge else -amount))
+        lines.append(((r["entry_date"], r["created_at"]), row))
 
     lines.sort(key=lambda line: line[0])
-    opening = Decimal((await db.execute(_OPENING_BALANCE, params)).scalar_one())
-    running = opening
-    rows: list[DeliveryLedgerRow] = []
-    for _, row, change in lines:
-        running += change
-        row.balance = running
-        rows.append(row)
+    rows = [row for _, row in lines]
+    total_repaid = sum((r.repaid for r in rows), Decimal(0))
 
     return DeliveryLedgerOut(
         delivery_id=user.id,
         delivery_name=user.name,
         start=start,
         end=end,
-        opening_balance=opening,
         rows=rows,
         total_qty=sum(r.qty for r in rows),
         total_empty_qty=sum(r.empty_qty for r in rows),
@@ -208,8 +195,8 @@ async def delivery_ledger(
         total_cash=sum((r.cash for r in rows), Decimal(0)),
         total_upi=sum((r.upi for r in rows), Decimal(0)),
         total_online=sum((r.online for r in rows), Decimal(0)),
-        total_repaid=sum((r.repaid for r in rows), Decimal(0)),
-        closing_balance=running,
+        total_repaid=total_repaid,
+        total_balance=sum((r.balance for r in rows), Decimal(0)) - total_repaid,
     )
 
 

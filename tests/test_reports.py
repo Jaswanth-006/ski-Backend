@@ -170,7 +170,7 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
 
 
 async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -> None:
-    """Per-delivery-boy statement: opening balance, sale lines, repayments, running balance."""
+    """Per-delivery-boy statement: each line's own balance; nothing carried in from before."""
     http, users = client
     await _cleanup()
     admin = {"Authorization": f"Bearer {await _token(http, TEST_ADMIN_PHONE)}"}
@@ -192,7 +192,7 @@ async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -
             headers=admin,
             json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 50}]},
         )
-        # Owed 500 from before the range.
+        # Owed 500 from before the range — must not show up.
         await http.post(
             "/v1/delivery-balances",
             headers=admin,
@@ -229,7 +229,7 @@ async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -
         res = await http.get(f"/v1/reports/delivery/{boy}?start={DS}&end={after}", headers=admin)
         assert res.status_code == 200, res.text
         body = res.json()
-        assert float(body["opening_balance"]) == 500
+        assert "opening_balance" not in body
         assert [r["kind"] for r in body["rows"]] == ["sale", "repayment"]
         s, rp = body["rows"]
         assert s["invoice_no"] == "ZZ-rep-INV1"
@@ -239,12 +239,12 @@ async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -
             2500,
             2500,
             1000,
-            4500,
+            4000,
         ]
         assert float(rp["repaid"]) == 3000 and rp["note"] == "paid at office"
-        assert float(rp["balance"]) == 1500
+        assert float(rp["balance"]) == 0
         assert float(body["total_amount"]) == 10000 and float(body["total_repaid"]) == 3000
-        assert float(body["closing_balance"]) == 1500
+        assert float(body["total_balance"]) == 1000  # 4000 unpaid − 3000 repaid
 
         # The overall delivery report counts empties actually returned.
         deliv = next(r for r in await _report(http, admin, "delivery") if r["delivery_id"] == boy)

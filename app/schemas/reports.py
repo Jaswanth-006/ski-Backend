@@ -40,7 +40,7 @@ class DeliveryLedgerRow(BaseModel):
     upi: Decimal = Decimal(0)
     online: Decimal = Decimal(0)  # billed online, paid to the company
     repaid: Decimal = Decimal(0)
-    balance: Decimal  # what he owes after this line
+    balance: Decimal  # left unpaid on this sale (or the manual charge); 0 on repayments
 
 
 class DeliveryLedgerOut(BaseModel):
@@ -48,7 +48,6 @@ class DeliveryLedgerOut(BaseModel):
     delivery_name: str
     start: dt.date
     end: dt.date
-    opening_balance: Decimal  # owed before `start`
     rows: list[DeliveryLedgerRow]
     total_qty: int
     total_empty_qty: int
@@ -57,7 +56,7 @@ class DeliveryLedgerOut(BaseModel):
     total_upi: Decimal
     total_online: Decimal
     total_repaid: Decimal
-    closing_balance: Decimal
+    total_balance: Decimal  # unpaid in the range minus repaid in the range
 
 
 class ExpenseReportRow(BaseModel):

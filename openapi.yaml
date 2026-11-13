@@ -3428,9 +3428,6 @@ components:
           type: string
           format: date
           title: End
-        opening_balance:
-          type: string
-          title: Opening Balance
         rows:
           items:
             $ref: '#/components/schemas/DeliveryLedgerRow'
@@ -3457,16 +3454,15 @@ components:
         total_repaid:
           type: string
           title: Total Repaid
-        closing_balance:
+        total_balance:
           type: string
-          title: Closing Balance
+          title: Total Balance
       type: object
       required:
       - delivery_id
       - delivery_name
       - start
       - end
-      - opening_balance
       - rows
       - total_qty
       - total_empty_qty
@@ -3475,7 +3471,7 @@ components:
       - total_upi
       - total_online
       - total_repaid
-      - closing_balance
+      - total_balance
       title: DeliveryLedgerOut
     DeliveryLedgerRow:
       properties:
