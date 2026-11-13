@@ -20,6 +20,8 @@ class DaySheetRow(BaseModel):
     party_kind: str  # 'delivery' | 'customer'
     cylinders: int  # full cylinders sold
     empties: int  # empty cylinders returned
+    damaged: int  # cylinders that came back damaged or were lost ("Return")
+    amount: Decimal  # sale value of the day's cylinders (incl. per-boy other sales)
     loaded: int  # cylinders loaded out to this driver
     returned: int  # cylinders brought back
     cash: Decimal
@@ -44,6 +46,8 @@ class StockSummary(BaseModel):
 class DaySheetTotals(BaseModel):
     cylinders: int
     empties: int
+    damaged: int
+    amount: Decimal
     cash: Decimal
     upi: Decimal
     online: Decimal

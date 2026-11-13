@@ -13,6 +13,7 @@ class SaleLineIn(BaseModel):
     cylinder_type_id: uuid.UUID
     qty: int = Field(ge=1)
     empty_qty: int | None = Field(default=None, ge=0)  # empties returned; defaults to qty
+    damaged_qty: int = Field(default=0, ge=0)  # came back damaged or lost (not added to stock)
 
 
 class DenominationIn(BaseModel):
@@ -52,6 +53,7 @@ class SaleLineOut(BaseModel):
     label: str
     qty: int
     empty_qty: int  # empties returned for this line
+    damaged_qty: int  # came back damaged or lost
     unit_price: Decimal  # base cylinder price
     other_sales_per_unit: Decimal  # per-boy extra on top
     line_total: Decimal  # (unit_price + other_sales_per_unit) × qty

@@ -23,6 +23,8 @@ def test_build_day_sheet_xlsx_returns_valid_workbook() -> None:
         totals=DaySheetTotals(
             cylinders=0,
             empties=0,
+            damaged=0,
+            amount=Decimal(0),
             cash=Decimal(0),
             upi=Decimal(0),
             online=Decimal(0),

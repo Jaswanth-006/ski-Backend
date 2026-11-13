@@ -9,6 +9,18 @@ from openpyxl.styles import Font
 
 from app.schemas.day_sheet import DaySheetOut
 
+HEADERS = [
+    "Party",
+    "Sold",
+    "Empty",
+    "Return",
+    "Total amount",
+    "UPI",
+    "Cash",
+    "Online",
+    "Balance",
+]
+
 
 def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
     wb = Workbook()
@@ -19,57 +31,45 @@ def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
     ws["A1"].font = Font(bold=True, size=14)
     ws["A2"] = "CLOSED" if sheet.is_closed else "OPEN"
 
-    headers = ["Delivery staff", "Loaded", "Sold", "Returned", "Cash", "UPI", "Total"]
     ws.append([])
-    ws.append(headers)
+    ws.append(HEADERS)
     for cell in ws[ws.max_row]:
         cell.font = Font(bold=True)
 
     for row in sheet.rows:
+        name = (
+            f"{row.delivery_name} (customer)" if row.party_kind == "customer" else row.delivery_name
+        )
         ws.append(
             [
-                row.delivery_name,
-                row.loaded,
+                name,
                 row.cylinders,
-                row.returned,
-                float(row.cash),
+                row.empties,
+                row.damaged,
+                float(row.amount),
                 float(row.upi),
-                float(row.total),
+                float(row.cash),
+                float(row.online),
+                float(row.balance),
             ]
         )
 
+    t = sheet.totals
     ws.append(
         [
             "Total",
-            sheet.stock.loaded,
-            sheet.totals.cylinders,
-            sheet.stock.returned,
-            float(sheet.totals.cash),
-            float(sheet.totals.upi),
-            float(sheet.totals.total),
+            t.cylinders,
+            t.empties,
+            t.damaged,
+            float(t.amount),
+            float(t.upi),
+            float(t.cash),
+            float(t.online),
+            float(t.balance),
         ]
     )
     for cell in ws[ws.max_row]:
         cell.font = Font(bold=True)
-
-    ws.append([])
-    ws.append([f"Warehouse stock — opening {sheet.stock.opening}, closing {sheet.stock.closing}"])
-    ws.append([f"Cashier box — opening {sheet.cashier_opening}, closing {sheet.cashier_closing}"])
-    ws.append(["Expenses", "", "", "", "", "", float(sheet.expenses_total)])
-    ws.append(["Net (collection − expenses)", "", "", "", "", "", float(sheet.net)])
-    for cell in ws[ws.max_row]:
-        cell.font = Font(bold=True)
-
-    # Cash denomination breakdown (aggregated across all drivers).
-    if sheet.denomination_totals:
-        ws.append([])
-        ws.append(["Cash denominations"])
-        ws[ws.max_row][0].font = Font(bold=True)
-        ws.append(["Note", "Count", "Amount"])
-        for cell in ws[ws.max_row]:
-            cell.font = Font(bold=True)
-        for d in sheet.denomination_totals:
-            ws.append([d.note_value, d.note_count, d.note_value * d.note_count])
 
     buffer = BytesIO()
     wb.save(buffer)
