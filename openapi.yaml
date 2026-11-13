@@ -90,6 +90,446 @@ paths:
                 $ref: '#/components/schemas/UserOut'
       security:
       - HTTPBearer: []
+  /v1/stock/entries:
+    get:
+      tags:
+      - corrections
+      summary: List Stock Entries
+      operationId: list_stock_entries_v1_stock_entries_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockEntryOut'
+                title: Response List Stock Entries V1 Stock Entries Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/stock/entries/{entry_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Stock Entry
+      operationId: edit_stock_entry_v1_stock_entries__entry_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockEntryEdit'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockEntryOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/stock/entries/{entry_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Stock Entry
+      operationId: delete_stock_entry_v1_stock_entries__entry_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/expenses/{expense_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Expense
+      operationId: edit_expense_v1_expenses__expense_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: expense_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Expense Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseEdit'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/expenses/{expense_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Expense
+      operationId: delete_expense_v1_expenses__expense_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: expense_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Expense Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/transfers/{transfer_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Transfer
+      operationId: edit_transfer_v1_transfers__transfer_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: transfer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Transfer Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferEdit'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/transfers/{transfer_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Transfer
+      operationId: delete_transfer_v1_transfers__transfer_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: transfer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Transfer Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/balance-entries:
+    get:
+      tags:
+      - corrections
+      summary: List Balance Entries
+      operationId: list_balance_entries_v1_balance_entries_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BalanceEntryOut'
+                title: Response List Balance Entries V1 Balance Entries Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/delivery-balances/{entry_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Delivery Balance
+      operationId: edit_delivery_balance_v1_delivery_balances__entry_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BalanceEntryEdit'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/delivery-balances/{entry_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Delivery Balance
+      operationId: delete_delivery_balance_v1_delivery_balances__entry_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/customer-balances/{entry_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Customer Balance
+      operationId: edit_customer_balance_v1_customer_balances__entry_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BalanceEntryEdit'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/customer-balances/{entry_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Customer Balance
+      operationId: delete_customer_balance_v1_customer_balances__entry_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Entry Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/credits/{credit_id}:
+    put:
+      tags:
+      - corrections
+      summary: Edit Credit
+      operationId: edit_credit_v1_credits__credit_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: credit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Credit Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditEdit'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/credits/{credit_id}/delete:
+    post:
+      tags:
+      - corrections
+      summary: Delete Credit
+      operationId: delete_credit_v1_credits__credit_id__delete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: credit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Credit Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/users:
     get:
       tags:
@@ -2689,6 +3129,105 @@ components:
       - new_value
       - created_at
       title: AuditOut
+    BalanceEntryEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+        method:
+          anyOf:
+          - type: string
+            enum:
+            - cash
+            - upi
+          - type: 'null'
+          title: Method
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - reason
+      - entry_date
+      - amount
+      title: BalanceEntryEdit
+    BalanceEntryOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        party_kind:
+          type: string
+          enum:
+          - delivery
+          - customer
+          title: Party Kind
+        party_id:
+          type: string
+          format: uuid
+          title: Party Id
+        party_name:
+          type: string
+          title: Party Name
+        kind:
+          type: string
+          title: Kind
+        amount:
+          type: string
+          title: Amount
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - party_kind
+      - party_id
+      - party_name
+      - kind
+      - amount
+      - entry_date
+      - method
+      - note
+      - invoice_no
+      - created_at
+      title: BalanceEntryOut
     BankAccountCreate:
       properties:
         bank_id:
@@ -2919,6 +3458,41 @@ components:
       - amount
       - given_date
       title: CreditCreate
+    CreditEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        person_name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Person Name
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+        given_date:
+          type: string
+          format: date
+          title: Given Date
+        note:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - reason
+      - person_name
+      - amount
+      - given_date
+      title: CreditEdit
     CreditOut:
       properties:
         id:
@@ -3923,6 +4497,53 @@ components:
       - amount
       - method
       title: ExpenseCreate
+    ExpenseEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+        method:
+          type: string
+          enum:
+          - cash
+          - digital
+          title: Method
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+        delivery_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Delivery Id
+      type: object
+      required:
+      - reason
+      - business_date
+      - item_id
+      - amount
+      - method
+      title: ExpenseEdit
     ExpenseItemCreate:
       properties:
         name:
@@ -4383,6 +5004,17 @@ components:
       - unit_price
       - effective_date
       title: PriceSet
+    Reason:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+      type: object
+      required:
+      - reason
+      title: Reason
     RefreshRequest:
       properties:
         refresh_token:
@@ -4756,6 +5388,146 @@ components:
       - revenue_total
       - settled_total
       title: SaleOut
+    StockEntryEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        lines:
+          items:
+            $ref: '#/components/schemas/StockEntryLine'
+          type: array
+          minItems: 1
+          title: Lines
+      type: object
+      required:
+      - reason
+      - business_date
+      - lines
+      title: StockEntryEdit
+    StockEntryLine:
+      properties:
+        cylinder_type_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cylinder Type Id
+        accessory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Accessory Id
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - empty
+          - type: 'null'
+          title: Condition
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - qty
+      title: StockEntryLine
+    StockEntryLineOut:
+      properties:
+        cylinder_type_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cylinder Type Id
+        accessory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Accessory Id
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - empty
+          - type: 'null'
+          title: Condition
+        qty:
+          type: integer
+          minimum: 1.0
+          title: Qty
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+        label:
+          type: string
+          title: Label
+      type: object
+      required:
+      - qty
+      - label
+      title: StockEntryLineOut
+    StockEntryOut:
+      properties:
+        entry_id:
+          type: string
+          format: uuid
+          title: Entry Id
+        kind:
+          type: string
+          enum:
+          - ac4
+          - erv
+          - return
+          - intake
+          title: Kind
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        lines:
+          items:
+            $ref: '#/components/schemas/StockEntryLineOut'
+          type: array
+          title: Lines
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        created_by_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created By Name
+      type: object
+      required:
+      - entry_id
+      - kind
+      - business_date
+      - lines
+      - created_at
+      - created_by_name
+      title: StockEntryOut
     StockIntake:
       properties:
         lines:
@@ -5018,6 +5790,43 @@ components:
       - dest_kind
       - method
       title: TransferCreate
+    TransferEdit:
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+          minLength: 3
+          title: Reason
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+        method:
+          type: string
+          maxLength: 40
+          minLength: 1
+          title: Method
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - reason
+      - business_date
+      - amount
+      - method
+      title: TransferEdit
+      description: Date, amount, method and note; to change where money went, delete
+        and record again.
     TransferOut:
       properties:
         id:

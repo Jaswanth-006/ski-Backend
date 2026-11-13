@@ -83,6 +83,7 @@ async def record_ac4(
 ) -> None:
     """Stock received from the plant: full cylinders and/or accessories added to stock."""
     bd = business_date or business_today()
+    entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     try:
         for line in cylinders:
             db.add(
@@ -91,6 +92,7 @@ async def record_ac4(
                     condition="full",
                     delta=line.qty,
                     reason="ac4",
+                    entry_id=entry_id,
                     business_date=bd,
                     created_by=created_by,
                 )
@@ -113,6 +115,7 @@ async def record_ac4(
                     accessory_id=acc.accessory_id,
                     delta=acc.qty,
                     reason="ac4",
+                    entry_id=entry_id,
                     business_date=bd,
                     created_by=created_by,
                 )
@@ -147,6 +150,7 @@ async def record_erv(
 ) -> None:
     """Empty cylinders returned to the plant: reduces empty stock."""
     bd = business_date or business_today()
+    entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     wanted: dict[tuple[uuid.UUID | None, uuid.UUID | None, str | None], int] = {}
     for line in lines:
         key = (line.cylinder_type_id, None, "empty")
@@ -160,6 +164,7 @@ async def record_erv(
                     condition="empty",
                     delta=-line.qty,
                     reason="erv",
+                    entry_id=entry_id,
                     business_date=bd,
                     created_by=created_by,
                 )
@@ -191,6 +196,7 @@ async def record_return(
 ) -> None:
     """Damaged or lost items written out of stock (cylinders full/empty, or accessories)."""
     bd = business_date or business_today()
+    entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     wanted: dict[tuple[uuid.UUID | None, uuid.UUID | None, str | None], int] = {}
     for line in lines:
         if line.cylinder_type_id is not None and line.condition == "full":
@@ -219,6 +225,7 @@ async def record_return(
                     condition=line.condition,
                     delta=-line.qty,
                     reason="return",
+                    entry_id=entry_id,
                     business_date=bd,
                     note=line.note,
                     created_by=created_by,
