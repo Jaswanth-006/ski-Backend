@@ -158,18 +158,6 @@ def _key(line: Any) -> tuple[Any, Any, Any]:
     return (line.cylinder_type_id, line.accessory_id, line.condition)
 
 
-async def _apply_inventory(db: AsyncSession, cylinder_type_id: uuid.UUID, change: int) -> None:
-    """Keep the live full-cylinder inventory (what sales draw from) in step."""
-    inv = await db.scalar(
-        select(Inventory).where(Inventory.cylinder_type_id == cylinder_type_id).with_for_update()
-    )
-    if inv is None:
-        inv = Inventory(cylinder_type_id=cylinder_type_id, quantity=0, version=0)
-        db.add(inv)
-    inv.quantity += change
-    inv.version += 1
-
-
 _ON_HAND = text(
     """
     SELECT COALESCE(SUM(delta), 0) FROM stock_ledger
@@ -190,12 +178,37 @@ async def _replace_stock_entry(
     """Swap an entry's rows for `lines` (none = delete), keeping stock non-negative."""
     sign = 1 if entry.kind in ("ac4", "intake") else -1
     touched = {_key(line) for line in entry.lines} | {_key(line) for line in lines}
+    labels = {_key(x): x.label for x in entry.lines}
 
-    for old in entry.lines:  # undo the old entry's effect on the live inventory
+    def what(key: tuple[Any, Any, Any]) -> str:
+        name = labels.get(key, "item")
+        return f"{name} ({key[2]})" if key[2] else name
+
+    # Live full-cylinder inventory (what sales draw from): apply the net change once, and
+    # refuse it if it would go below zero (e.g. shrinking an ac4 whose cylinders were sold).
+    net: dict[uuid.UUID, int] = {}
+    for old in entry.lines:
         if old.cylinder_type_id is not None and old.condition == "full":
-            await _apply_inventory(db, old.cylinder_type_id, -sign * old.qty)
-    await db.execute(delete(StockLedger).where(StockLedger.entry_id == entry.entry_id))
+            net[old.cylinder_type_id] = net.get(old.cylinder_type_id, 0) - sign * old.qty
+    for line in lines:
+        if line.cylinder_type_id is not None and line.condition == "full":
+            net[line.cylinder_type_id] = net.get(line.cylinder_type_id, 0) + sign * line.qty
+    for cyl, change in net.items():
+        if change == 0:
+            continue
+        inv = await db.scalar(
+            select(Inventory).where(Inventory.cylinder_type_id == cyl).with_for_update()
+        )
+        current = inv.quantity if inv is not None else 0
+        if current + change < 0:
+            raise StockWouldGoNegative(what((cyl, None, "full")), current + change)
+        if inv is None:
+            db.add(Inventory(cylinder_type_id=cyl, quantity=change, version=0))
+        else:
+            inv.quantity = current + change
+            inv.version += 1
 
+    await db.execute(delete(StockLedger).where(StockLedger.entry_id == entry.entry_id))
     for line in lines:
         db.add(
             StockLedger(
@@ -210,27 +223,15 @@ async def _replace_stock_entry(
                 created_by=actor.id,
             )
         )
-        if line.cylinder_type_id is not None and line.condition == "full":
-            await _apply_inventory(db, line.cylinder_type_id, sign * line.qty)
     await db.flush()
 
-    # Nothing may end up below zero: e.g. deleting an ac4 whose cylinders were already sold.
-    for cyl, acc, cond in touched:
+    # The ledger (empties, accessories, full) must not end up below zero either.
+    for key in touched:
+        cyl, acc, cond = key
         params = {"cyl": str(cyl) if cyl else None, "acc": str(acc) if acc else None, "cond": cond}
         on_hand = int(await db.scalar(_ON_HAND, params) or 0)
-        live = None
-        if cyl is not None and cond == "full":
-            live = await db.scalar(
-                select(Inventory.quantity).where(Inventory.cylinder_type_id == cyl)
-            )
-        if on_hand < 0 or (live is not None and live < 0):
-            name = next(
-                (x.label for x in entry.lines if _key(x) == (cyl, acc, cond)),
-                "item",
-            )
-            raise StockWouldGoNegative(
-                f"{name} ({cond})" if cond else name, min(on_hand, live if live is not None else 0)
-            )
+        if on_hand < 0:
+            raise StockWouldGoNegative(what(key), on_hand)
 
 
 async def edit_stock_entry(
