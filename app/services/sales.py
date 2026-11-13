@@ -153,6 +153,7 @@ async def create_and_post_sale(
                 cylinder_type_id=line.cylinder_type_id,
                 qty=line.qty,
                 empty_qty=empty_qty,
+                damaged_qty=line.damaged_qty,
                 unit_price=unit_price,
                 other_sales_per_unit=boy_extra,
             )
@@ -277,6 +278,7 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
             label=label,
             qty=sl.qty,
             empty_qty=sl.empty_qty,
+            damaged_qty=sl.damaged_qty,
             unit_price=sl.unit_price,
             other_sales_per_unit=sl.other_sales_per_unit,
             line_total=(sl.unit_price + sl.other_sales_per_unit) * sl.qty,
