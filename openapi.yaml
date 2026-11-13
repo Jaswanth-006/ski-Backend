@@ -2181,6 +2181,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/delivery/{delivery_id}:
+    get:
+      tags:
+      - reports
+      summary: Delivery Ledger
+      operationId: delivery_ledger_v1_reports_delivery__delivery_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryLedgerOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/reports/expenses:
     get:
       tags:
@@ -2585,7 +2628,6 @@ components:
           title: Is Active
         balance:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance
       type: object
       required:
@@ -2672,35 +2714,27 @@ components:
           title: Business Date
         opening:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Opening
         collected:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Collected
         expenses:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expenses
         deposited:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Deposited
         closing:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Closing
         hand_cash_opening:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hand Cash Opening
         hand_cash_collected:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hand Cash Collected
         hand_cash_closing:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hand Cash Closing
       type: object
       required:
@@ -2722,7 +2756,6 @@ components:
           title: Business Date
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
       type: object
       required:
@@ -2752,7 +2785,6 @@ components:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         given_date:
           type: string
@@ -2781,7 +2813,6 @@ components:
           title: Person Name
         amount:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         given_date:
           type: string
@@ -2827,7 +2858,6 @@ components:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         entry_date:
           type: string
@@ -2861,7 +2891,6 @@ components:
           title: Customer Id
         amount:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         entry_date:
           type: string
@@ -2900,15 +2929,12 @@ components:
           title: Customer Name
         charged:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Charged
         repaid:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Repaid
         balance:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance
       type: object
       required:
@@ -3140,11 +3166,9 @@ components:
           $ref: '#/components/schemas/DaySheetTotals'
         expenses_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expenses Total
         net:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
         denomination_totals:
           items:
@@ -3153,11 +3177,9 @@ components:
           title: Denomination Totals
         cashier_opening:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cashier Opening
         cashier_closing:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cashier Closing
         stock:
           $ref: '#/components/schemas/StockSummary'
@@ -3201,35 +3223,27 @@ components:
           title: Returned
         cash:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cash
         upi:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
         online:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         expense:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expense
         net:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
         balance:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance
         handed:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Handed
         denominations:
           items:
@@ -3265,35 +3279,27 @@ components:
           title: Empties
         cash:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cash
         upi:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
         online:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         expense:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expense
         net:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
         balance:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance
         handed:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Handed
       type: object
       required:
@@ -3319,7 +3325,6 @@ components:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         entry_date:
           type: string
@@ -3353,7 +3358,6 @@ components:
           title: Delivery Id
         amount:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         entry_date:
           type: string
@@ -3392,15 +3396,12 @@ components:
           title: Delivery Name
         charged:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Charged
         repaid:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Repaid
         balance:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance
       type: object
       required:
@@ -3410,6 +3411,134 @@ components:
       - repaid
       - balance
       title: DeliveryBalanceSummaryOut
+    DeliveryLedgerOut:
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        delivery_name:
+          type: string
+          title: Delivery Name
+        start:
+          type: string
+          format: date
+          title: Start
+        end:
+          type: string
+          format: date
+          title: End
+        opening_balance:
+          type: string
+          title: Opening Balance
+        rows:
+          items:
+            $ref: '#/components/schemas/DeliveryLedgerRow'
+          type: array
+          title: Rows
+        total_qty:
+          type: integer
+          title: Total Qty
+        total_empty_qty:
+          type: integer
+          title: Total Empty Qty
+        total_amount:
+          type: string
+          title: Total Amount
+        total_cash:
+          type: string
+          title: Total Cash
+        total_upi:
+          type: string
+          title: Total Upi
+        total_online:
+          type: string
+          title: Total Online
+        total_repaid:
+          type: string
+          title: Total Repaid
+        closing_balance:
+          type: string
+          title: Closing Balance
+      type: object
+      required:
+      - delivery_id
+      - delivery_name
+      - start
+      - end
+      - opening_balance
+      - rows
+      - total_qty
+      - total_empty_qty
+      - total_amount
+      - total_cash
+      - total_upi
+      - total_online
+      - total_repaid
+      - closing_balance
+      title: DeliveryLedgerOut
+    DeliveryLedgerRow:
+      properties:
+        entry_date:
+          type: string
+          format: date
+          title: Entry Date
+        kind:
+          type: string
+          enum:
+          - sale
+          - repayment
+          - charge
+          title: Kind
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        qty:
+          type: integer
+          title: Qty
+          default: 0
+        empty_qty:
+          type: integer
+          title: Empty Qty
+          default: 0
+        amount:
+          type: string
+          title: Amount
+          default: '0'
+        cash:
+          type: string
+          title: Cash
+          default: '0'
+        upi:
+          type: string
+          title: Upi
+          default: '0'
+        online:
+          type: string
+          title: Online
+          default: '0'
+        repaid:
+          type: string
+          title: Repaid
+          default: '0'
+        balance:
+          type: string
+          title: Balance
+      type: object
+      required:
+      - entry_date
+      - kind
+      - balance
+      title: DeliveryLedgerRow
+      description: 'One line of a delivery boy''s statement: a sale, a balance repayment
+        or a manual charge.'
     DeliveryOtherSalesOut:
       properties:
         delivery_id:
@@ -3421,7 +3550,6 @@ components:
           title: Delivery Name
         amount_per_cylinder:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount Per Cylinder
       type: object
       required:
@@ -3436,7 +3564,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount Per Cylinder
       type: object
       required:
@@ -3453,7 +3580,6 @@ components:
           title: Delivery Name
         sales:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Sales
         full_cylinders:
           type: integer
@@ -3507,7 +3633,6 @@ components:
           title: Recipient
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         count:
           type: integer
@@ -3530,24 +3655,19 @@ components:
           title: Cylinders Sold
         gross_cash:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Gross Cash
         upi_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
         online_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online Total
         expenses_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expenses Total
         net_profit:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Net Profit
       type: object
@@ -3609,7 +3729,6 @@ components:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         method:
           type: string
@@ -3715,7 +3834,6 @@ components:
           title: Item Name
         amount:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         method:
           type: string
@@ -3764,7 +3882,6 @@ components:
           title: Item Name
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         count:
           type: integer
@@ -3913,27 +4030,21 @@ components:
           title: Empty Returned
         cash:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cash
         upi:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
         online:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         expenses:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expenses
         net:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
         denominations:
           items:
@@ -3989,27 +4100,21 @@ components:
           title: Empty Returned
         cash:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cash
         upi:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi
         online:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online
         total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total
         expenses:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Expenses
         net:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Net
       type: object
       required:
@@ -4033,7 +4138,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Price
       type: object
       required:
@@ -4072,7 +4176,6 @@ components:
         unit_price:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Unit Price
         effective_date:
@@ -4104,7 +4207,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Price
         effective_date:
           type: string
@@ -4220,7 +4322,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
           default: '0'
         online_total:
@@ -4228,7 +4329,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online Total
           default: '0'
         balance_total:
@@ -4236,7 +4336,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance Total
           default: '0'
       type: object
@@ -4286,15 +4385,12 @@ components:
           title: Empty Qty
         unit_price:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Price
         other_sales_per_unit:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Other Sales Per Unit
         line_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Line Total
       type: object
       required:
@@ -4357,27 +4453,21 @@ components:
           title: Lines
         cash_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cash Total
         upi_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Upi Total
         online_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Online Total
         balance_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Balance Total
         revenue_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Revenue Total
         settled_total:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Settled Total
       type: object
       required:
@@ -4604,7 +4694,6 @@ components:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         source_kind:
           type: string
@@ -4674,7 +4763,6 @@ components:
           title: Business Date
         amount:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Amount
         source_kind:
           type: string
