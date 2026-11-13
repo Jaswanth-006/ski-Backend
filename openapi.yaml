@@ -4037,32 +4037,27 @@ components:
         cylinders:
           type: integer
           title: Cylinders
-        empty_returned:
+        empties:
           type: integer
-          title: Empty Returned
-        cash:
+          title: Empties
+        damaged:
+          type: integer
+          title: Damaged
+        amount:
           type: string
-          title: Cash
+          title: Amount
         upi:
           type: string
           title: Upi
+        cash:
+          type: string
+          title: Cash
         online:
           type: string
           title: Online
-        total:
+        balance:
           type: string
-          title: Total
-        expenses:
-          type: string
-          title: Expenses
-        net:
-          type: string
-          title: Net
-        denominations:
-          items:
-            $ref: '#/components/schemas/Denomination'
-          type: array
-          title: Denominations
+          title: Balance
         is_closed:
           type: boolean
           title: Is Closed
@@ -4070,14 +4065,13 @@ components:
       required:
       - business_date
       - cylinders
-      - empty_returned
-      - cash
+      - empties
+      - damaged
+      - amount
       - upi
+      - cash
       - online
-      - total
-      - expenses
-      - net
-      - denominations
+      - balance
       - is_closed
       title: MonthSheetDay
     MonthSheetOut:
@@ -4107,37 +4101,37 @@ components:
         cylinders:
           type: integer
           title: Cylinders
-        empty_returned:
+        empties:
           type: integer
-          title: Empty Returned
-        cash:
+          title: Empties
+        damaged:
+          type: integer
+          title: Damaged
+        amount:
           type: string
-          title: Cash
+          title: Amount
         upi:
           type: string
           title: Upi
+        cash:
+          type: string
+          title: Cash
         online:
           type: string
           title: Online
-        total:
+        balance:
           type: string
-          title: Total
-        expenses:
-          type: string
-          title: Expenses
-        net:
-          type: string
-          title: Net
+          title: Balance
       type: object
       required:
       - cylinders
-      - empty_returned
-      - cash
+      - empties
+      - damaged
+      - amount
       - upi
+      - cash
       - online
-      - total
-      - expenses
-      - net
+      - balance
       title: MonthSheetTotals
     PriceBulkItem:
       properties:

@@ -1,4 +1,4 @@
-"""Month sheet schemas — per-day rollup for a calendar month."""
+"""Month sheet schemas — each day sheet's final totals, one row per day."""
 
 from __future__ import annotations
 
@@ -7,32 +7,29 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.schemas.day_sheet import Denomination
-
 
 class MonthSheetDay(BaseModel):
     business_date: dt.date
-    cylinders: int  # full cylinders sold (= stock sold)
-    empty_returned: int  # empties sent back to the plant (erv) that day
-    cash: Decimal  # hand cash collected
+    cylinders: int  # full cylinders sold
+    empties: int  # empties that came back with the sales
+    damaged: int  # came back damaged or were lost ("Return")
+    amount: Decimal  # sale value (incl. per-boy other sales)
     upi: Decimal
+    cash: Decimal
     online: Decimal  # paid direct to the company
-    total: Decimal  # cash + upi
-    expenses: Decimal
-    net: Decimal  # total − expenses
-    denominations: list[Denomination]  # hand-cash note breakdown, high value first
+    balance: Decimal  # left unpaid that day (delivery boys + customers)
     is_closed: bool
 
 
 class MonthSheetTotals(BaseModel):
     cylinders: int
-    empty_returned: int
-    cash: Decimal
+    empties: int
+    damaged: int
+    amount: Decimal
     upi: Decimal
+    cash: Decimal
     online: Decimal
-    total: Decimal
-    expenses: Decimal
-    net: Decimal
+    balance: Decimal
 
 
 class MonthSheetOut(BaseModel):
