@@ -11,6 +11,7 @@ from app.api.deps import get_current_user, get_db, require_roles
 from app.db.models import User
 from app.schemas.accessory import AccessoryCreate, AccessoryOut, AccessoryUpdate
 from app.services import accessories as accessories_service
+from app.services import audit
 
 router = APIRouter(tags=["accessories"])
 
@@ -27,34 +28,52 @@ async def list_accessories(
 @router.post("/accessories", response_model=AccessoryOut, status_code=status.HTTP_201_CREATED)
 async def create_accessory(
     body: AccessoryCreate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> AccessoryOut:
     try:
-        return await accessories_service.create_accessory(db, body.name)
+        result = await accessories_service.create_accessory(db, body.name)
     except accessories_service.DuplicateAccessory as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="accessory already exists") from exc
+    await audit.record(
+        db,
+        actor.id,
+        "accessory.create",
+        "accessory",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.patch("/accessories/{accessory_id}", response_model=AccessoryOut)
 async def update_accessory(
     accessory_id: uuid.UUID,
     body: AccessoryUpdate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> AccessoryOut:
     try:
-        return await accessories_service.update_accessory(db, accessory_id, body)
+        result = await accessories_service.update_accessory(db, accessory_id, body)
     except accessories_service.AccessoryNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="accessory not found") from exc
     except accessories_service.DuplicateAccessory as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="accessory already exists") from exc
+    await audit.record(
+        db,
+        actor.id,
+        "accessory.update",
+        "accessory",
+        accessory_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.delete("/accessories/{accessory_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_accessory(
     accessory_id: uuid.UUID,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     try:
@@ -66,3 +85,4 @@ async def delete_accessory(
             status.HTTP_409_CONFLICT,
             detail="this accessory has stock history — deactivate it instead",
         ) from exc
+    await audit.record(db, actor.id, "accessory.delete", "accessory", accessory_id)

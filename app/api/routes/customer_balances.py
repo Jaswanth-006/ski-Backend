@@ -15,6 +15,7 @@ from app.schemas.customer_balances import (
     CustomerBalanceSummaryOut,
 )
 from app.services import customer_balances as service
+from app.services import day_lock
 
 router = APIRouter(tags=["customer-balances"])
 
@@ -46,6 +47,7 @@ async def create_customer_balance_entry(
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerBalanceEntryOut:
+    await day_lock.ensure_open(db, body.entry_date, current_user)
     try:
         return await service.create_entry(db, body, current_user.id)
     except service.InvalidCustomer as exc:

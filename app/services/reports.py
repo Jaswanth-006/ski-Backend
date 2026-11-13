@@ -60,7 +60,8 @@ _LEDGER_SALES = text(
       COALESCE((SELECT SUM((unit_price + other_sales_per_unit) * qty)
                 FROM sale_lines WHERE sale_id = s.id), 0) AS amount,
       COALESCE((SELECT SUM(note_value * note_count)
-                FROM cash_denominations WHERE sale_id = s.id), 0) AS cash
+                FROM cash_denominations WHERE sale_id = s.id), 0) AS cash,
+      COALESCE((SELECT SUM(amount) FROM expenses WHERE sale_id = s.id), 0) AS expenses
     FROM sales s
     WHERE s.delivery_id = :d AND s.status = 'approved'
       AND s.business_date BETWEEN :start AND :end
@@ -160,6 +161,7 @@ async def delivery_ledger(
             cash=Decimal(r["cash"]),
             upi=Decimal(r["upi_total"]),
             online=Decimal(r["online_total"]),
+            expenses=Decimal(r["expenses"]),
             balance=Decimal(r["balance_total"]),
         )
         lines.append(((r["business_date"], r["created_at"]), row))
@@ -195,6 +197,7 @@ async def delivery_ledger(
         total_cash=sum((r.cash for r in rows), Decimal(0)),
         total_upi=sum((r.upi for r in rows), Decimal(0)),
         total_online=sum((r.online for r in rows), Decimal(0)),
+        total_expenses=sum((r.expenses for r in rows), Decimal(0)),
         total_repaid=total_repaid,
         total_balance=sum((r.balance for r in rows), Decimal(0)) - total_repaid,
     )

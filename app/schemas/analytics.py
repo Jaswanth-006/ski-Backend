@@ -15,8 +15,10 @@ class EodOut(BaseModel):
     upi_total: Decimal
     online_total: Decimal  # paid direct to the company
     expenses_total: Decimal
+    sales_total: Decimal  # sale value of the day's cylinders (incl. per-boy other sales)
+    balance_total: Decimal  # left unpaid on the day's sales
     # Owner-only; null for office_admin (margins are hidden).
-    net_profit: Decimal | None
+    net_profit: Decimal | None  # sales − expenses (owner only)
 
 
 class CollectionPoint(BaseModel):

@@ -7,8 +7,8 @@ import datetime as dt
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import business_today
 from app.api.deps import get_current_user, get_replica_db
+from app.core.clock import business_today
 from app.db.models import User
 from app.schemas.analytics import CollectionsTrendOut, CylinderMovementOut, EodOut
 from app.services import analytics as analytics_service

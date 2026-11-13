@@ -33,6 +33,16 @@ _ONLINE = text(
     "WHERE business_date = :d AND status = 'approved'"
 )
 _EXP = text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date = :d")
+# Sale value (incl. per-boy other sales) and the part left unpaid, for approved sales.
+_SALES = text(
+    "SELECT COALESCE(SUM((sl.unit_price + sl.other_sales_per_unit) * sl.qty), 0) "
+    "FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id "
+    "WHERE s.business_date = :d AND s.status = 'approved'"
+)
+_BALANCE = text(
+    "SELECT COALESCE(SUM(balance_total), 0) FROM sales "
+    "WHERE business_date = :d AND status = 'approved'"
+)
 
 
 async def eod(db: AsyncSession, on_date: dt.date, include_net_profit: bool) -> EodOut:
@@ -42,7 +52,10 @@ async def eod(db: AsyncSession, on_date: dt.date, include_net_profit: bool) -> E
     upi_total = Decimal(await db.scalar(_UPI, params) or 0)
     online_total = Decimal(await db.scalar(_ONLINE, params) or 0)
     expenses_total = Decimal(await db.scalar(_EXP, params) or 0)
-    net_profit = gross_cash + upi_total + online_total - expenses_total
+    sales_total = Decimal(await db.scalar(_SALES, params) or 0)
+    balance_total = Decimal(await db.scalar(_BALANCE, params) or 0)
+    # Not true profit — cost prices aren't recorded — but sales less the day's expenses.
+    net_profit = sales_total - expenses_total
 
     return EodOut(
         business_date=on_date,
@@ -51,6 +64,8 @@ async def eod(db: AsyncSession, on_date: dt.date, include_net_profit: bool) -> E
         upi_total=upi_total,
         online_total=online_total,
         expenses_total=expenses_total,
+        sales_total=sales_total,
+        balance_total=balance_total,
         net_profit=net_profit if include_net_profit else None,
     )
 

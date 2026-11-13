@@ -9,12 +9,13 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import business_today
 from app.api.deps import get_db, require_roles
+from app.core.clock import business_today
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
 from app.schemas.stock import Ac4Request, ErvRequest, ReturnRequest, StockOverview
 from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
+from app.services import day_lock
 from app.services import inventory as inventory_service
 from app.services import stock as stock_service
 from app.services import stock_loads as stock_loads_service
@@ -39,6 +40,7 @@ async def stock_ac4(
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """ac4 — stock received from the plant (full cylinders + accessories)."""
+    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
     try:
         await stock_service.record_ac4(
             db,
@@ -59,6 +61,7 @@ async def stock_erv(
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """erv — empty cylinders returned to the plant."""
+    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
     try:
         await stock_service.record_erv(
             db,
@@ -66,6 +69,8 @@ async def stock_erv(
             created_by=current_user.id,
             business_date=body.business_date,
         )
+    except stock_service.InsufficientStock as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await stock_service.overview(db, body.business_date or business_today())
@@ -78,6 +83,7 @@ async def stock_return(
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """return — damaged or lost cylinders (full/empty) or accessories taken out of stock."""
+    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
     try:
         await stock_service.record_return(
             db,
@@ -86,9 +92,7 @@ async def stock_return(
             business_date=body.business_date,
         )
     except stock_service.InsufficientStock as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="not enough full cylinders in stock to return"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await stock_service.overview(db, body.business_date or business_today())
@@ -108,6 +112,7 @@ async def stock_intake(
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[InventoryOut]:
+    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
     try:
         await inventory_service.record_intake(db, body.lines, current_user.id, body.business_date)
     except inventory_service.InvalidCylinderType as exc:
@@ -153,6 +158,7 @@ async def adjust_inventory(
             status.HTTP_400_BAD_REQUEST, detail="If-Match must be an integer version"
         ) from exc
 
+    await day_lock.ensure_open(db, business_today(), current_user)
     try:
         row = await inventory_service.adjust_inventory(
             db, cylinder_type_id, body.quantity, expected_version, current_user.id

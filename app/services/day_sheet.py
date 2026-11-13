@@ -29,6 +29,10 @@ class DayAlreadyClosed(Exception):
     """The day is already closed."""
 
 
+class DayNotClosed(Exception):
+    """The day is open, so there is nothing to reopen."""
+
+
 _AGG_SQL = text(
     """
     SELECT COALESCE(s.delivery_id, s.customer_id) AS party_id,
@@ -69,13 +73,29 @@ _DENOM_SQL = text(
     """
 )
 
+# Customers with a sale or a balance charge that day (so the sheet matches the month sheet).
 _CUSTOMERS_WITH_SALES = text(
     """
     SELECT c.id, c.name FROM customers c
-    JOIN sales s ON s.customer_id = c.id
-    WHERE s.business_date = :on_date AND s.status = 'approved'
-    GROUP BY c.id, c.name
+    WHERE c.id IN (SELECT customer_id FROM sales
+                   WHERE business_date = :on_date AND status = 'approved')
+       OR c.id IN (SELECT customer_id FROM customer_balances
+                   WHERE kind = 'charge' AND entry_date = :on_date)
     ORDER BY c.name
+    """
+)
+# Active delivery staff, plus anyone deactivated who still has activity that day.
+_DRIVERS = text(
+    """
+    SELECT id, name FROM users
+    WHERE role = 'delivery' AND (
+        is_active
+        OR id IN (SELECT delivery_id FROM sales
+                  WHERE business_date = :on_date AND status = 'approved')
+        OR id IN (SELECT delivery_id FROM delivery_balances
+                  WHERE kind = 'charge' AND entry_date = :on_date)
+    )
+    ORDER BY name
     """
 )
 
@@ -87,18 +107,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         row["party_id"]: row
         for row in (await db.execute(_AGG_SQL, {"on_date": on_date})).mappings().all()
     }
-    drivers = (
-        (
-            await db.execute(
-                text(
-                    "SELECT id, name FROM users WHERE role = 'delivery' AND is_active = TRUE "
-                    "ORDER BY name"
-                )
-            )
-        )
-        .mappings()
-        .all()
-    )
+    drivers = (await db.execute(_DRIVERS, {"on_date": on_date})).mappings().all()
 
     # Per-party denomination breakdown: {party_id: {note_value: count}}
     denom_by_driver: dict[uuid.UUID, dict[int, int]] = {}
@@ -256,5 +265,26 @@ async def close_day(db: AsyncSession, on_date: dt.date, actor: User) -> DaySheet
     await audit.write(
         db, actor.id, "daysheet.close", "day_sheet", str(on_date), new={"closed_by": actor.name}
     )
+    await db.commit()
+    return await get_day_sheet(db, on_date)
+
+
+async def reopen_day(db: AsyncSession, on_date: dt.date, actor: User) -> DaySheetOut:
+    """Owner undoes a close so the day can be corrected; audited like the close."""
+    status = await db.get(DaySheetStatus, on_date)
+    if status is None or not status.is_closed:
+        raise DayNotClosed()
+    status.is_closed = False
+    await audit.write(
+        db,
+        actor.id,
+        "daysheet.reopen",
+        "day_sheet",
+        str(on_date),
+        old={"closed_at": str(status.closed_at)},
+        new={"reopened_by": actor.name},
+    )
+    status.closed_by = None
+    status.closed_at = None
     await db.commit()
     return await get_day_sheet(db, on_date)

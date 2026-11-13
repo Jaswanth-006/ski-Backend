@@ -16,6 +16,7 @@ from app.schemas.customer_balances import (
     CustomerBalanceEntryOut,
     CustomerBalanceSummaryOut,
 )
+from app.services import audit
 
 
 class InvalidCustomer(Exception):
@@ -30,6 +31,7 @@ def _entry_out(b: CustomerBalance) -> CustomerBalanceEntryOut:
         entry_date=b.entry_date,
         kind=b.kind,
         note=b.note,
+        method=b.method,
         created_at=b.created_at,
     )
 
@@ -43,9 +45,23 @@ async def create_entry(
         entry_date=data.entry_date,
         kind=data.kind,
         note=data.note,
+        method=data.method,
         created_by=created_by,
     )
     db.add(entry)
+    await audit.write(
+        db,
+        created_by,
+        f"customer_balance.{data.kind}",
+        "customer_balance",
+        data.customer_id,
+        new={
+            "amount": str(data.amount),
+            "entry_date": str(data.entry_date),
+            "method": data.method,
+            "note": data.note,
+        },
+    )
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -71,8 +87,11 @@ _SUMMARY_SQL = text(
         COALESCE(SUM(cb.amount) FILTER (WHERE cb.kind = 'repayment'), 0)  AS repaid
     FROM customers c
     LEFT JOIN customer_balances cb ON cb.customer_id = c.id
-    WHERE c.is_active = TRUE
-    GROUP BY c.id, c.name
+    GROUP BY c.id, c.name, c.is_active
+    -- deactivated customers stay listed while they still owe something
+    HAVING c.is_active
+        OR COALESCE(SUM(cb.amount) FILTER (WHERE cb.kind = 'charge'), 0)
+         - COALESCE(SUM(cb.amount) FILTER (WHERE cb.kind = 'repayment'), 0) <> 0
     ORDER BY c.name
     """
 )

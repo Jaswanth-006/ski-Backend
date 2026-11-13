@@ -1535,6 +1535,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/day-sheet/{on_date}/reopen:
+    post:
+      tags:
+      - day-sheet
+      summary: Reopen Day
+      description: 'Owner only: open a closed day again so it can be corrected.'
+      operationId: reopen_day_v1_day_sheet__on_date__reopen_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+          title: On Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaySheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/day-sheet/{on_date}/export:
     post:
       tags:
@@ -2797,6 +2827,9 @@ components:
         collected:
           type: string
           title: Collected
+        repaid:
+          type: string
+          title: Repaid
         expenses:
           type: string
           title: Expenses
@@ -2812,6 +2845,9 @@ components:
         hand_cash_collected:
           type: string
           title: Hand Cash Collected
+        hand_cash_repaid:
+          type: string
+          title: Hand Cash Repaid
         hand_cash_closing:
           type: string
           title: Hand Cash Closing
@@ -2820,11 +2856,13 @@ components:
       - business_date
       - opening
       - collected
+      - repaid
       - expenses
       - deposited
       - closing
       - hand_cash_opening
       - hand_cash_collected
+      - hand_cash_repaid
       - hand_cash_closing
       title: CashierBoxOut
     CollectionPoint:
@@ -2951,6 +2989,14 @@ components:
             maxLength: 280
           - type: 'null'
           title: Note
+        method:
+          anyOf:
+          - type: string
+            enum:
+            - cash
+            - upi
+          - type: 'null'
+          title: Method
       type: object
       required:
       - customer_id
@@ -2983,6 +3029,11 @@ components:
           - type: string
           - type: 'null'
           title: Note
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
         created_at:
           type: string
           format: date-time
@@ -3434,6 +3485,14 @@ components:
             maxLength: 280
           - type: 'null'
           title: Note
+        method:
+          anyOf:
+          - type: string
+            enum:
+            - cash
+            - upi
+          - type: 'null'
+          title: Method
       type: object
       required:
       - delivery_id
@@ -3466,6 +3525,11 @@ components:
           - type: string
           - type: 'null'
           title: Note
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
         created_at:
           type: string
           format: date-time
@@ -3546,6 +3610,9 @@ components:
         total_online:
           type: string
           title: Total Online
+        total_expenses:
+          type: string
+          title: Total Expenses
         total_repaid:
           type: string
           title: Total Repaid
@@ -3565,6 +3632,7 @@ components:
       - total_cash
       - total_upi
       - total_online
+      - total_expenses
       - total_repaid
       - total_balance
       title: DeliveryLedgerOut
@@ -3614,6 +3682,10 @@ components:
         online:
           type: string
           title: Online
+          default: '0'
+        expenses:
+          type: string
+          title: Expenses
           default: '0'
         repaid:
           type: string
@@ -3756,6 +3828,12 @@ components:
         expenses_total:
           type: string
           title: Expenses Total
+        sales_total:
+          type: string
+          title: Sales Total
+        balance_total:
+          type: string
+          title: Balance Total
         net_profit:
           anyOf:
           - type: string
@@ -3769,6 +3847,8 @@ components:
       - upi_total
       - online_total
       - expenses_total
+      - sales_total
+      - balance_total
       - net_profit
       title: EodOut
     ErvLine:
@@ -4434,6 +4514,11 @@ components:
           - type: string
           title: Balance Total
           default: '0'
+        expenses:
+          items:
+            $ref: '#/components/schemas/SaleExpenseIn'
+          type: array
+          title: Expenses
       type: object
       required:
       - invoice_no
@@ -4455,6 +4540,43 @@ components:
       - sale
       title: SaleEdit
       description: Edit = the corrected sale plus why the original was wrong.
+    SaleExpenseIn:
+      properties:
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+      type: object
+      required:
+      - item_id
+      - amount
+      title: SaleExpenseIn
+      description: A route expense the delivery boy paid out of this sale's collection
+        (e.g. fuel).
+    SaleExpenseOut:
+      properties:
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        item_name:
+          type: string
+          title: Item Name
+        amount:
+          type: string
+          title: Amount
+      type: object
+      required:
+      - item_id
+      - item_name
+      - amount
+      title: SaleExpenseOut
     SaleLineIn:
       properties:
         cylinder_type_id:
@@ -4589,6 +4711,15 @@ components:
         settled_total:
           type: string
           title: Settled Total
+        expenses:
+          items:
+            $ref: '#/components/schemas/SaleExpenseOut'
+          type: array
+          title: Expenses
+        expenses_total:
+          type: string
+          title: Expenses Total
+          default: '0'
         denominations:
           items:
             $ref: '#/components/schemas/DenominationIn'

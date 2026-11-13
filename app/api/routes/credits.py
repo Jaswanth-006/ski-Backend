@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.credits import CreditCreate, CreditOut
+from app.services import audit
 from app.services import credits as credits_service
 
 router = APIRouter(tags=["credits"])
@@ -30,17 +31,28 @@ async def create_credit(
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CreditOut:
-    return await credits_service.create_credit(db, body, current_user.id)
+    result = await credits_service.create_credit(db, body, current_user.id)
+    await audit.record(
+        db,
+        current_user.id,
+        "credit.create",
+        "credit",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
 
 
 @router.post("/credits/{credit_id}/settle", response_model=CreditOut)
 async def settle_credit(
     credit_id: uuid.UUID,
     settled: bool = True,
-    _: User = Depends(require_roles("super_admin", "office_admin")),
+    actor: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CreditOut:
     try:
-        return await credits_service.settle_credit(db, credit_id, settled=settled)
+        result = await credits_service.settle_credit(db, credit_id, settled=settled)
     except credits_service.CreditNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="credit not found") from exc
+    await audit.record(db, actor.id, "credit.settle", "credit", credit_id, new={"settled": settled})
+    return result

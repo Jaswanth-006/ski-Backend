@@ -9,12 +9,13 @@ from decimal import Decimal
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import DeliveryBalance
+from app.db.models import DeliveryBalance, User
 from app.schemas.delivery_balances import (
     DeliveryBalanceCreate,
     DeliveryBalanceEntryOut,
     DeliveryBalanceSummaryOut,
 )
+from app.services import audit
 
 
 def _entry_out(b: DeliveryBalance) -> DeliveryBalanceEntryOut:
@@ -25,22 +26,44 @@ def _entry_out(b: DeliveryBalance) -> DeliveryBalanceEntryOut:
         entry_date=b.entry_date,
         kind=b.kind,
         note=b.note,
+        method=b.method,
         created_at=b.created_at,
     )
+
+
+class InvalidDeliveryPerson(Exception):
+    """The id is not a delivery person."""
 
 
 async def create_entry(
     db: AsyncSession, data: DeliveryBalanceCreate, created_by: uuid.UUID
 ) -> DeliveryBalanceEntryOut:
+    person = await db.get(User, data.delivery_id)
+    if person is None or person.role != "delivery":
+        raise InvalidDeliveryPerson(str(data.delivery_id))
     entry = DeliveryBalance(
         delivery_id=data.delivery_id,
         amount=data.amount,
         entry_date=data.entry_date,
         kind=data.kind,
         note=data.note,
+        method=data.method,
         created_by=created_by,
     )
     db.add(entry)
+    await audit.write(
+        db,
+        created_by,
+        f"delivery_balance.{data.kind}",
+        "delivery_balance",
+        data.delivery_id,
+        new={
+            "amount": str(data.amount),
+            "entry_date": str(data.entry_date),
+            "method": data.method,
+            "note": data.note,
+        },
+    )
     await db.commit()
     await db.refresh(entry)
     return _entry_out(entry)
@@ -62,8 +85,12 @@ _SUMMARY_SQL = text(
         COALESCE(SUM(db.amount) FILTER (WHERE db.kind = 'repayment'), 0)  AS repaid
     FROM users u
     LEFT JOIN delivery_balances db ON db.delivery_id = u.id
-    WHERE u.role = 'delivery' AND u.is_active = TRUE
-    GROUP BY u.id, u.name
+    WHERE u.role = 'delivery'
+    GROUP BY u.id, u.name, u.is_active
+    -- deactivated staff stay listed while they still owe something
+    HAVING u.is_active
+        OR COALESCE(SUM(db.amount) FILTER (WHERE db.kind = 'charge'), 0)
+         - COALESCE(SUM(db.amount) FILTER (WHERE db.kind = 'repayment'), 0) <> 0
     ORDER BY u.name
     """
 )

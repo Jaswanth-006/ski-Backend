@@ -42,6 +42,19 @@ async def close_day(
         raise HTTPException(status.HTTP_409_CONFLICT, detail="the day is already closed") from exc
 
 
+@router.post("/day-sheet/{on_date}/reopen", response_model=DaySheetOut)
+async def reopen_day(
+    on_date: dt.date,
+    current_user: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> DaySheetOut:
+    """Owner only: open a closed day again so it can be corrected."""
+    try:
+        return await day_sheet_service.reopen_day(db, on_date, current_user)
+    except day_sheet_service.DayNotClosed as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="the day is not closed") from exc
+
+
 @router.post(
     "/day-sheet/{on_date}/export", response_model=JobEnqueued, status_code=status.HTTP_202_ACCEPTED
 )

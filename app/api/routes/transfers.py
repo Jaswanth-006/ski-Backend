@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.transfers import TransferCreate, TransferOut
+from app.services import day_lock
 from app.services import transfers as transfers_service
 
 router = APIRouter(tags=["transfers"])
@@ -23,6 +24,7 @@ async def create_transfer(
     current_user: User = Depends(require_roles(*_OFFICE)),
     db: AsyncSession = Depends(get_db),
 ) -> TransferOut:
+    await day_lock.ensure_open(db, body.business_date, current_user)
     try:
         return await transfers_service.create_transfer(db, body, current_user.id)
     except transfers_service.InvalidReference as exc:

@@ -13,6 +13,7 @@ from app.api.deps import ensure_can_access_user, get_current_user, get_db, requi
 from app.db.models import User
 from app.schemas.auth import UserOut
 from app.schemas.users import UserCreate, UserUpdate
+from app.services import audit
 from app.services import users as users_service
 
 router = APIRouter(tags=["users"])
@@ -31,27 +32,40 @@ async def list_users(
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_user(
     body: UserCreate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     try:
-        return await users_service.create_user(db, body)
+        user = await users_service.create_user(db, body)
     except users_service.PhoneAlreadyExists as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="a user with this phone already exists"
         ) from exc
+    await audit.record(
+        db,
+        actor.id,
+        "user.create",
+        "user",
+        user.id,
+        new=body.model_dump(mode="json", exclude={"password"}),
+    )
+    return user
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
 async def update_user(
     user_id: uuid.UUID,
     body: UserUpdate,
-    _: User = Depends(require_roles("super_admin")),
+    actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     user = await users_service.update_user(db, user_id, body)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+    changes = body.model_dump(mode="json", exclude_unset=True, exclude={"password"})
+    if body.password is not None:
+        changes["password_changed"] = True
+    await audit.record(db, actor.id, "user.update", "user", user_id, new=changes)
     return user
 
 

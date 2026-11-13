@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.clock import business_today
 from app.db.models import CylinderType, Inventory, StockLedger
 from app.schemas.inventory import InventoryOut, StockIntakeLine
+from app.services import audit
 
 
 class InvalidCylinderType(Exception):
@@ -82,6 +83,18 @@ async def record_intake(
                 },
             )
             await db.execute(stmt)
+        await audit.write(
+            db,
+            created_by,
+            "stock.intake",
+            "stock",
+            str(bd),
+            new={
+                "lines": [
+                    {"cylinder_type_id": str(x.cylinder_type_id), "qty": x.qty} for x in lines
+                ]
+            },
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -115,6 +128,15 @@ async def adjust_inventory(
             business_date=business_today(),
             created_by=created_by,
         )
+    )
+    await audit.write(
+        db,
+        created_by,
+        "stock.adjust",
+        "inventory",
+        cylinder_type_id,
+        old={"quantity": new_quantity - delta},
+        new={"quantity": new_quantity},
     )
     await db.commit()
 
