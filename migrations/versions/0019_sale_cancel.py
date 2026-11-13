@@ -23,6 +23,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # The original check was created unnamed, so Postgres called it sales_status_check.
+    op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_status_check")
     op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS ck_sales_status")
     op.execute(
         "ALTER TABLE sales ADD CONSTRAINT ck_sales_status "
@@ -66,6 +68,8 @@ def downgrade() -> None:
     op.execute("ALTER TABLE sales DROP COLUMN cancel_reason")
     op.execute("ALTER TABLE sales DROP COLUMN cancelled_by")
     op.execute("ALTER TABLE sales DROP COLUMN cancelled_at")
+    # The original check was created unnamed, so Postgres called it sales_status_check.
+    op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_status_check")
     op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS ck_sales_status")
     op.execute(
         "ALTER TABLE sales ADD CONSTRAINT ck_sales_status "
