@@ -72,7 +72,7 @@ _LEDGER_ENTRIES = text(
     SELECT entry_date, created_at, kind, amount, note
     FROM delivery_balances
     WHERE delivery_id = :d AND entry_date BETWEEN :start AND :end
-      AND NOT (kind = 'charge' AND COALESCE(note, '') LIKE :sale_note)
+      AND NOT (kind = 'charge' AND (sale_id IS NOT NULL OR COALESCE(note, '') LIKE :sale_note))
     """
 )
 

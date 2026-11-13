@@ -23,7 +23,7 @@ _CYL = text(
 )
 _CASH = text(
     "SELECT COALESCE(SUM(cl.amount), 0) FROM cash_ledger cl JOIN sales s ON s.id = cl.sale_id "
-    "WHERE s.business_date = :d AND cl.kind = 'cash'"
+    "WHERE s.business_date = :d AND cl.kind = 'cash' AND s.status = 'approved'"
 )
 _UPI = text(
     "SELECT COALESCE(SUM(upi_total), 0) FROM sales WHERE business_date = :d AND status = 'approved'"
@@ -59,7 +59,7 @@ async def eod(db: AsyncSession, on_date: dt.date, include_net_profit: bool) -> E
 _CASH_BY_DAY = text(
     "SELECT s.business_date AS d, COALESCE(SUM(cl.amount), 0) AS amt "
     "FROM cash_ledger cl JOIN sales s ON s.id = cl.sale_id "
-    "WHERE cl.kind = 'cash' AND s.business_date BETWEEN :start AND :end "
+    "WHERE cl.kind = 'cash' AND s.status = 'approved' AND s.business_date BETWEEN :start AND :end "
     "GROUP BY s.business_date"
 )
 _UPI_BY_DAY = text(

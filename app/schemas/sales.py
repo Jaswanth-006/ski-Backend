@@ -77,3 +77,24 @@ class SaleOut(BaseModel):
     balance_total: Decimal  # uncollected — added to the boy's or customer's balance
     revenue_total: Decimal
     settled_total: Decimal  # cash + upi handed in
+    denominations: list[DenominationIn] = Field(default_factory=list)  # cash notes counted
+    cancelled_at: dt.datetime | None = None
+    cancel_reason: str | None = None
+
+
+class SaleCancel(BaseModel):
+    reason: str = Field(min_length=3, max_length=280)
+
+    @field_validator("reason")
+    @classmethod
+    def _strip_reason(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("give a short reason")
+        return v
+
+
+class SaleEdit(SaleCancel):
+    """Edit = the corrected sale plus why the original was wrong."""
+
+    sale: SaleCreate

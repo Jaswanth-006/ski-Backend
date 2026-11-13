@@ -61,7 +61,13 @@ async def _purge_users(session: AsyncSession, ids: Sequence[uuid.UUID]) -> None:
         return
     sale_ids = (
         await session.scalars(
-            select(Sale.id).where(or_(Sale.delivery_id.in_(ids), Sale.approved_by.in_(ids)))
+            select(Sale.id).where(
+                or_(
+                    Sale.delivery_id.in_(ids),
+                    Sale.approved_by.in_(ids),
+                    Sale.cancelled_by.in_(ids),
+                )
+            )
         )
     ).all()
     if sale_ids:

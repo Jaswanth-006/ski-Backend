@@ -12,7 +12,7 @@ import datetime as dt
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,35 +30,43 @@ from app.db.models import (
     StockLedger,
     User,
 )
-from app.schemas.sales import SaleCreate, SaleLineOut, SaleOut
+from app.schemas.sales import DenominationIn, SaleCreate, SaleLineOut, SaleOut
 from app.services import audit, delivery_other_sales, pricing
 
 # Note prefix on the balance charge a sale writes for its uncollected part (reports match on it).
 SALE_CHARGE_NOTE = "sale balance (uncollected)"
 
 
-class DuplicateInvoice(Exception):
+class SaleError(Exception):
+    """Base for the sale errors the API turns into 4xx responses."""
+
+
+class DuplicateInvoice(SaleError):
     def __init__(self, invoice_no: str) -> None:
         self.invoice_no = invoice_no
         super().__init__(f"invoice number {invoice_no} is already used")
 
 
-class DayClosed(Exception):
+class DayClosed(SaleError):
     """The business date's day sheet is already closed."""
 
+    def __init__(self, owner_can_change: bool = False) -> None:
+        self.owner_can_change = owner_can_change
+        super().__init__("the day sheet is closed")
 
-class NoPriceForDate(Exception):
+
+class NoPriceForDate(SaleError):
     def __init__(self, code: str) -> None:
         super().__init__(f"no price set for {code} on that date")
 
 
-class InsufficientStock(Exception):
+class InsufficientStock(SaleError):
     def __init__(self, code: str) -> None:
         self.code = code
         super().__init__(f"insufficient stock for {code}")
 
 
-class ReconciliationFailed(Exception):
+class ReconciliationFailed(SaleError):
     def __init__(self, flags: list[str]) -> None:
         self.flags = flags
         super().__init__("; ".join(flags))
@@ -87,10 +95,23 @@ def reconcile(
     return flags
 
 
-async def _assert_day_open(db: AsyncSession, business_date: dt.date) -> None:
+class SaleNotFound(SaleError):
+    pass
+
+
+class SaleNotCancellable(SaleError):
+    """Only a posted (approved) sale can be cancelled or edited."""
+
+
+async def _is_closed(db: AsyncSession, business_date: dt.date) -> bool:
     status = await db.get(DaySheetStatus, business_date)
-    if status is not None and status.is_closed:
-        raise DayClosed()
+    return status is not None and status.is_closed
+
+
+async def _assert_day_open(db: AsyncSession, business_date: dt.date, actor: User) -> None:
+    """A closed day takes no new or changed sales — except from the owner."""
+    if actor.role != "super_admin" and await _is_closed(db, business_date):
+        raise DayClosed(owner_can_change=True)
 
 
 async def create_and_post_sale(
@@ -101,8 +122,149 @@ async def create_and_post_sale(
     if existing is not None:
         return await _build_sale_out(db, existing)
 
-    await _assert_day_open(db, data.business_date)
-    if await db.scalar(select(Sale.id).where(Sale.invoice_no == data.invoice_no)) is not None:
+    if await _is_closed(db, data.business_date):
+        raise DayClosed()
+    sale = await _post(db, data, idempotency_key, actor)
+    await _commit(db, data.invoice_no)
+    return await _build_sale_out(db, sale)
+
+
+async def cancel_sale(db: AsyncSession, sale_id: uuid.UUID, reason: str, actor: User) -> SaleOut:
+    sale = await _load_for_change(db, sale_id, actor)
+    await _reverse(db, sale, reason, actor)
+    await db.commit()
+    return await _build_sale_out(db, sale)
+
+
+async def replace_sale(
+    db: AsyncSession,
+    sale_id: uuid.UUID,
+    reason: str,
+    data: SaleCreate,
+    idempotency_key: uuid.UUID,
+    actor: User,
+) -> SaleOut:
+    """Edit = cancel the old sale and post the corrected one, in one transaction."""
+    existing = await db.scalar(select(Sale).where(Sale.idempotency_key == idempotency_key))
+    if existing is not None:
+        return await _build_sale_out(db, existing)
+
+    old = await _load_for_change(db, sale_id, actor)
+    await _assert_day_open(db, data.business_date, actor)
+    await _reverse(db, old, reason, actor)
+    new = await _post(db, data, idempotency_key, actor)
+    await audit.write(
+        db,
+        actor.id,
+        "sale.edit",
+        "sale",
+        new.id,
+        old={"sale_id": str(old.id), "invoice_no": old.invoice_no},
+        new={"sale_id": str(new.id), "invoice_no": new.invoice_no, "reason": reason},
+    )
+    await _commit(db, data.invoice_no)
+    return await _build_sale_out(db, new)
+
+
+async def _load_for_change(db: AsyncSession, sale_id: uuid.UUID, actor: User) -> Sale:
+    sale = await db.scalar(select(Sale).where(Sale.id == sale_id).with_for_update())
+    if sale is None:
+        raise SaleNotFound()
+    if sale.status != "approved":
+        raise SaleNotCancellable()
+    await _assert_day_open(db, sale.business_date, actor)
+    return sale
+
+
+async def _reverse(db: AsyncSession, sale: Sale, reason: str, actor: User) -> None:
+    """Undo everything a posted sale did: stock back, its balance charge gone, marked cancelled.
+
+    Its cash / UPI / online rows stay but every sheet, report and the cashier box only count
+    approved sales, so they drop out with the status change.
+    """
+    lines = (await db.scalars(select(SaleLine).where(SaleLine.sale_id == sale.id))).all()
+    note = f"cancelled · invoice {sale.invoice_no}"
+    for line in lines:
+        inv = await db.scalar(
+            select(Inventory)
+            .where(Inventory.cylinder_type_id == line.cylinder_type_id)
+            .with_for_update()
+        )
+        if inv is not None:
+            inv.quantity += line.qty
+            inv.version += 1
+        # Opposite 'sale' rows on the same date net the sale out of every stock figure.
+        db.add(
+            StockLedger(
+                cylinder_type_id=line.cylinder_type_id,
+                condition="full",
+                delta=line.qty,
+                reason="sale",
+                business_date=sale.business_date,
+                ref_id=sale.id,
+                note=note,
+                created_by=actor.id,
+            )
+        )
+        if line.empty_qty:
+            db.add(
+                StockLedger(
+                    cylinder_type_id=line.cylinder_type_id,
+                    condition="empty",
+                    delta=-line.empty_qty,
+                    reason="sale",
+                    business_date=sale.business_date,
+                    ref_id=sale.id,
+                    note=note,
+                    created_by=actor.id,
+                )
+            )
+
+    await db.execute(delete(DeliveryBalance).where(DeliveryBalance.sale_id == sale.id))
+    await db.execute(delete(CustomerBalance).where(CustomerBalance.sale_id == sale.id))
+
+    sale.status = "cancelled"
+    sale.cancelled_at = dt.datetime.now(tz=dt.UTC)
+    sale.cancelled_by = actor.id
+    sale.cancel_reason = reason
+    await audit.write(
+        db,
+        actor.id,
+        "sale.cancel",
+        "sale",
+        sale.id,
+        old={
+            "invoice_no": sale.invoice_no,
+            "business_date": str(sale.business_date),
+            "upi": str(sale.upi_total),
+            "online": str(sale.online_total),
+            "balance": str(sale.balance_total),
+        },
+        new={"status": "cancelled", "reason": reason},
+    )
+    # Flush now so the invoice number is free for a re-posted sale in the same transaction.
+    await db.flush()
+
+
+async def _commit(db: AsyncSession, invoice_no: str) -> None:
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # Lost a race with another sale using the same invoice number.
+        await db.rollback()
+        if "uq_sales_invoice_no" in str(exc.orig):
+            raise DuplicateInvoice(invoice_no) from exc
+        raise
+
+
+async def _post(
+    db: AsyncSession, data: SaleCreate, idempotency_key: uuid.UUID, actor: User
+) -> Sale:
+    """Build and post a sale (no commit). The caller has already checked the day is open."""
+    taken = await db.scalar(
+        select(Sale.id).where(Sale.invoice_no == data.invoice_no, Sale.status != "cancelled")
+    )
+    if taken is not None:
         raise DuplicateInvoice(data.invoice_no)
 
     sale = Sale(
@@ -212,6 +374,7 @@ async def create_and_post_sale(
                     entry_date=data.business_date,
                     kind="charge",
                     note=note,
+                    sale_id=sale.id,
                     created_by=actor.id,
                 )
             )
@@ -223,6 +386,7 @@ async def create_and_post_sale(
                     entry_date=data.business_date,
                     kind="charge",
                     note=note,
+                    sale_id=sale.id,
                     created_by=actor.id,
                 )
             )
@@ -250,16 +414,7 @@ async def create_and_post_sale(
             "override": bool(flags),
         },
     )
-
-    try:
-        await db.commit()
-    except IntegrityError as exc:
-        # Lost a race with another sale using the same invoice number.
-        await db.rollback()
-        if "uq_sales_invoice_no" in str(exc.orig):
-            raise DuplicateInvoice(data.invoice_no) from exc
-        raise
-    return await _build_sale_out(db, sale)
+    return sale
 
 
 async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
@@ -318,6 +473,18 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         balance_total=sale.balance_total,
         revenue_total=revenue_total,
         settled_total=cash_total + sale.upi_total,
+        denominations=[
+            DenominationIn(note_value=d.note_value, note_count=d.note_count)
+            for d in (
+                await db.scalars(
+                    select(CashDenomination)
+                    .where(CashDenomination.sale_id == sale.id)
+                    .order_by(CashDenomination.note_value.desc())
+                )
+            ).all()
+        ],
+        cancelled_at=sale.cancelled_at,
+        cancel_reason=sale.cancel_reason,
     )
 
 
