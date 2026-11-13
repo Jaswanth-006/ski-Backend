@@ -60,6 +60,7 @@ async def record_intake(
     business_date: dt.date | None = None,
 ) -> None:
     bd = business_date or business_today()
+    entry_id = uuid.uuid4()
     try:
         for line in lines:
             db.add(
@@ -68,6 +69,7 @@ async def record_intake(
                     condition="full",
                     delta=line.qty,
                     reason="intake",
+                    entry_id=entry_id,
                     business_date=bd,
                     created_by=created_by,
                 )
