@@ -8,6 +8,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import business_today
 from app.db.models import Credit
 from app.schemas.credits import CreditCreate, CreditOut
 
@@ -57,7 +58,7 @@ async def settle_credit(db: AsyncSession, credit_id: uuid.UUID, *, settled: bool
     if credit is None:
         raise CreditNotFound(str(credit_id))
     credit.is_settled = settled
-    credit.settled_date = dt.date.today() if settled else None
+    credit.settled_date = business_today() if settled else None
     await db.commit()
     await db.refresh(credit)
     return _out(credit)

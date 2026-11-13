@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import business_today
 from app.db.models import CylinderType, Inventory, StockLedger
 from app.schemas.inventory import InventoryOut, StockIntakeLine
 
@@ -57,7 +58,7 @@ async def record_intake(
     created_by: uuid.UUID,
     business_date: dt.date | None = None,
 ) -> None:
-    bd = business_date or dt.date.today()
+    bd = business_date or business_today()
     try:
         for line in lines:
             db.add(
@@ -111,6 +112,7 @@ async def adjust_inventory(
             condition="full",
             delta=delta,
             reason="adjust",
+            business_date=business_today(),
             created_by=created_by,
         )
     )

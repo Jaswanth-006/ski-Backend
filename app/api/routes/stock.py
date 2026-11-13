@@ -9,6 +9,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import business_today
 from app.api.deps import get_db, require_roles
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
@@ -28,7 +29,7 @@ async def stock_overview(
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """Per-day full/empty cylinder + accessory opening, movement, and closing."""
-    return await stock_service.overview(db, date or dt.date.today())
+    return await stock_service.overview(db, date or business_today())
 
 
 @router.post("/stock/ac4", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
@@ -48,7 +49,7 @@ async def stock_ac4(
         )
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or dt.date.today())
+    return await stock_service.overview(db, body.business_date or business_today())
 
 
 @router.post("/stock/erv", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
@@ -67,7 +68,7 @@ async def stock_erv(
         )
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or dt.date.today())
+    return await stock_service.overview(db, body.business_date or business_today())
 
 
 @router.post("/stock/return", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
@@ -90,7 +91,7 @@ async def stock_return(
         ) from exc
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or dt.date.today())
+    return await stock_service.overview(db, body.business_date or business_today())
 
 
 @router.get("/inventory", response_model=list[InventoryOut])

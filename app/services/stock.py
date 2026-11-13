@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import business_today
 from app.db.models import Inventory, StockLedger
 from app.schemas.stock import (
     Ac4AccessoryLine,
@@ -45,7 +46,7 @@ async def record_ac4(
     business_date: dt.date | None = None,
 ) -> None:
     """Stock received from the plant: full cylinders and/or accessories added to stock."""
-    bd = business_date or dt.date.today()
+    bd = business_date or business_today()
     try:
         for line in cylinders:
             db.add(
@@ -94,7 +95,7 @@ async def record_erv(
     business_date: dt.date | None = None,
 ) -> None:
     """Empty cylinders returned to the plant: reduces empty stock."""
-    bd = business_date or dt.date.today()
+    bd = business_date or business_today()
     try:
         for line in lines:
             db.add(
@@ -121,7 +122,7 @@ async def record_return(
     business_date: dt.date | None = None,
 ) -> None:
     """Damaged or lost items written out of stock (cylinders full/empty, or accessories)."""
-    bd = business_date or dt.date.today()
+    bd = business_date or business_today()
     try:
         for line in lines:
             if line.cylinder_type_id is not None and line.condition == "full":
