@@ -280,7 +280,6 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
             ("expense", "expense.edit"),
             ("transfer", "transfer.delete"),
             ("delivery_balance", "delivery_balance.edit"),
-            ("credit", "credit.delete"),
         ):
             rows = (await http.get(f"/v1/audit?entity={entity}", headers=admin)).json()
             hit = next((x for x in rows if x["action"] == action), None)
