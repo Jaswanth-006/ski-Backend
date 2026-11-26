@@ -30,6 +30,26 @@ from app.schemas.stock import (
 from app.services import audit
 
 
+class DuplicatePurchaseInvoice(Exception):
+    def __init__(self, invoice_no: str) -> None:
+        super().__init__(f"invoice {invoice_no} is already recorded")
+
+
+_INVOICE_TAKEN = text(
+    "SELECT 1 FROM stock_ledger WHERE reason = 'ac4' AND lower(invoice_no) = lower(:inv) "
+    "AND (CAST(:entry AS uuid) IS NULL OR entry_id <> CAST(:entry AS uuid)) LIMIT 1"
+)
+
+
+async def ensure_invoice_free(
+    db: AsyncSession, invoice_no: str, except_entry: uuid.UUID | None = None
+) -> None:
+    """One IOC invoice is one ac4 entry (case doesn't matter)."""
+    params = {"inv": invoice_no, "entry": str(except_entry) if except_entry else None}
+    if await db.scalar(_INVOICE_TAKEN, params):
+        raise DuplicatePurchaseInvoice(invoice_no)
+
+
 class InvalidReference(Exception):
     """A referenced cylinder type or accessory does not exist."""
 
@@ -79,10 +99,12 @@ async def record_ac4(
     cylinders: Sequence[Ac4CylinderLine],
     accessories: Sequence[Ac4AccessoryLine],
     created_by: uuid.UUID,
+    invoice_no: str,
     business_date: dt.date | None = None,
 ) -> None:
     """Stock received from the plant: full cylinders and/or accessories added to stock."""
     bd = business_date or business_today()
+    await ensure_invoice_free(db, invoice_no)
     entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     try:
         for line in cylinders:
@@ -93,6 +115,7 @@ async def record_ac4(
                     delta=line.qty,
                     reason="ac4",
                     entry_id=entry_id,
+                    invoice_no=invoice_no,
                     business_date=bd,
                     created_by=created_by,
                 )
@@ -116,6 +139,7 @@ async def record_ac4(
                     delta=acc.qty,
                     reason="ac4",
                     entry_id=entry_id,
+                    invoice_no=invoice_no,
                     business_date=bd,
                     created_by=created_by,
                 )
@@ -127,6 +151,7 @@ async def record_ac4(
             "stock",
             str(bd),
             new={
+                "invoice_no": invoice_no,
                 "cylinders": [
                     {"cylinder_type_id": str(x.cylinder_type_id), "qty": x.qty} for x in cylinders
                 ],

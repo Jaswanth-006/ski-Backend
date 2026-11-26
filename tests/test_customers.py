@@ -88,6 +88,7 @@ async def test_customer_sale_shows_on_day_sheet(client: tuple[AsyncClient, Seede
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": DAY.isoformat(),
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 100}],
             },
@@ -155,6 +156,7 @@ async def test_invoice_number_and_customer_balance(
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": DAY.isoformat(),
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 100}],
             },

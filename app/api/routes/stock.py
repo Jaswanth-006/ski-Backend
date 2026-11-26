@@ -47,8 +47,11 @@ async def stock_ac4(
             cylinders=body.cylinders,
             accessories=body.accessories,
             created_by=current_user.id,
+            invoice_no=body.invoice_no,
             business_date=body.business_date,
         )
+    except stock_service.DuplicatePurchaseInvoice as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except stock_service.InvalidReference as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await stock_service.overview(db, body.business_date or business_today())

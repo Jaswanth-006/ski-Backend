@@ -41,7 +41,7 @@ from app.schemas.corrections import (
     StockEntryOut,
     TransferEdit,
 )
-from app.services import audit, day_lock
+from app.services import audit, day_lock, stock
 
 STOCK_KINDS = ("ac4", "erv", "return", "intake")
 
@@ -88,7 +88,8 @@ def _money(v: Decimal | None) -> str | None:
 
 _ENTRY_ROWS = text(
     """
-    SELECT sl.entry_id, sl.reason, sl.business_date, sl.cylinder_type_id, sl.accessory_id,
+    SELECT sl.entry_id, sl.reason, sl.business_date, sl.invoice_no,
+           sl.cylinder_type_id, sl.accessory_id,
            sl.condition, sl.delta, sl.note, sl.created_at, u.name AS created_by_name,
            COALESCE(ct.label, a.name, 'item') AS label
     FROM stock_ledger sl
@@ -112,6 +113,7 @@ def _group(rows: list[Any]) -> list[StockEntryOut]:
                 entry_id=r["entry_id"],
                 kind=r["reason"],
                 business_date=r["business_date"],
+                invoice_no=r["invoice_no"],
                 lines=[],
                 created_at=r["created_at"],
                 created_by_name=r["created_by_name"],
@@ -174,6 +176,7 @@ async def _replace_stock_entry(
     business_date: dt.date | None,
     lines: list[StockEntryLine],
     actor: User,
+    invoice_no: str | None = None,
 ) -> None:
     """Swap an entry's rows for `lines` (none = delete), keeping stock non-negative."""
     sign = 1 if entry.kind in ("ac4", "intake") else -1
@@ -220,6 +223,7 @@ async def _replace_stock_entry(
                 business_date=business_date or entry.business_date,
                 note=line.note,
                 entry_id=entry.entry_id,
+                invoice_no=invoice_no or entry.invoice_no,
                 created_by=actor.id,
             )
         )
@@ -240,14 +244,17 @@ async def edit_stock_entry(
     entry = await _get_stock_entry(db, entry_id)
     await _guard_dates(db, actor, entry.business_date, data.business_date)
     _check_lines(entry.kind, data.lines)
-    await _replace_stock_entry(db, entry, data.business_date, data.lines, actor)
+    invoice_no = data.invoice_no if entry.kind == "ac4" else None
+    if invoice_no and invoice_no.lower() != (entry.invoice_no or "").lower():
+        await stock.ensure_invoice_free(db, invoice_no, except_entry=entry.entry_id)
+    await _replace_stock_entry(db, entry, data.business_date, data.lines, actor, invoice_no)
     await audit.write(
         db,
         actor.id,
         f"stock.{entry.kind}.edit",
         "stock",
         entry_id,
-        old=entry.model_dump(mode="json", include={"business_date", "lines"}),
+        old=entry.model_dump(mode="json", include={"business_date", "invoice_no", "lines"}),
         new={**data.model_dump(mode="json", exclude={"reason"}), "reason": data.reason},
     )
     await db.commit()

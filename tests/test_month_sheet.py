@@ -60,6 +60,7 @@ async def test_month_sheet_by_date_with_online_and_empties(
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": DAY.isoformat(),
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
             },

@@ -55,6 +55,7 @@ class StockEntryOut(BaseModel):
     entry_id: uuid.UUID
     kind: StockKind
     business_date: dt.date
+    invoice_no: str | None  # ac4: the IOC invoice
     lines: list[StockEntryLineOut]
     created_at: dt.datetime
     created_by_name: str | None
@@ -62,7 +63,13 @@ class StockEntryOut(BaseModel):
 
 class StockEntryEdit(Reason):
     business_date: dt.date
+    invoice_no: str | None = Field(default=None, max_length=50)  # ac4 only; blank keeps it
     lines: list[StockEntryLine] = Field(min_length=1)
+
+    @field_validator("invoice_no")
+    @classmethod
+    def _strip_invoice(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
 
 
 # ---- Expenses ----

@@ -179,6 +179,7 @@ class StockLedger(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)  # why (e.g. return: damaged)
     # Groups the rows of one purchase entry (ac4 / erv / return / intake) for edit / delete.
     entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    invoice_no: Mapped[str | None] = mapped_column(Text, nullable=True)  # ac4: IOC invoice
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
