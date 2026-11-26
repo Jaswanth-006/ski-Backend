@@ -1,4 +1,4 @@
-"""Corrections: edit / delete purchase entries, expenses, deposits, balance entries, credits."""
+"""Corrections: edit / delete purchase entries, expenses, deposits, balance entries."""
 
 from __future__ import annotations
 
@@ -192,6 +192,11 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
 
         # ---- Deposits: edit amount, cashier box follows; delete.
         before = (await http.get(f"/v1/cashier-box/{DS}", headers=admin)).json()
+        person = (
+            await http.post(
+                "/v1/people", headers=office, json={"name": f"ZZ {tag}", "kind": "debtor"}
+            )
+        ).json()
         dep = (
             await http.post(
                 "/v1/transfers",
@@ -201,7 +206,7 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
                     "amount": 500,
                     "source_kind": "cashier_box",
                     "dest_kind": "person",
-                    "dest_person_name": f"ZZ {tag}",
+                    "dest_person_id": person["id"],
                     "method": "cash",
                 },
             )
@@ -249,27 +254,6 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
         assert float(next(o for o in owed if o["delivery_id"] == boy)["balance"]) == 300
         r = await http.post(f"/v1/delivery-balances/{rep['id']}/delete", headers=office, json=WHY)
         assert r.status_code == 204
-
-        # ---- Credits: edit, delete.
-        credit = (
-            await http.post(
-                "/v1/credits",
-                headers=office,
-                json={"person_name": f"ZZ {tag}", "amount": 1000, "given_date": DS},
-            )
-        ).json()
-        r = await http.put(
-            f"/v1/credits/{credit['id']}",
-            headers=office,
-            json={**WHY, "person_name": f"ZZ {tag} K", "amount": 900, "given_date": DS},
-        )
-        assert r.status_code == 204
-        credits = (await http.get("/v1/credits", headers=admin)).json()
-        c = next(x for x in credits if x["id"] == credit["id"])
-        assert c["person_name"] == f"ZZ {tag} K" and float(c["amount"]) == 900
-        assert (
-            await http.post(f"/v1/credits/{credit['id']}/delete", headers=office, json=WHY)
-        ).status_code == 204
 
         # ---- Closed day: office can't correct, owner can.
         exp2 = (

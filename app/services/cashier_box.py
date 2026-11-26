@@ -1,7 +1,8 @@
 """Cashier box service (Phase 8-A).
 
 The cashier box is a single running cash-in-hand balance that carries across days:
-    balance = (cash + UPI collected) + balance repayments − expenses − box-sourced deposits.
+    balance = (cash + UPI collected) + balance repayments + money put into the box
+              − expenses − box-sourced deposits.
 
 Route expenses entered with a sale (expenses.sale_id) are left out: the delivery boy spent that
 cash before handing in, so it never reached the box.
@@ -43,6 +44,12 @@ _DEPOSITS = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
     "WHERE source_kind = 'cashier_box' AND business_date <= :bound"
 )
+# Money into the box: a debtor paying back, a creditor lending, cash drawn from a bank.
+_RECEIVED = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM transfers "
+    "WHERE dest_kind = 'cashier_box' AND business_date <= :bound "
+    "AND (CAST(:method AS text) IS NULL OR method = :method)"
+)
 # Hand cash only — physical notes: cash collected, cash-method expenses, box deposits out.
 _CASH_ONLY = text(
     "SELECT COALESCE(SUM(cl.amount), 0) FROM cash_ledger cl JOIN sales s ON s.id = cl.sale_id "
@@ -64,15 +71,22 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
     cash_expenses = Decimal(await db.scalar(_CASH_EXPENSES, params) or 0)
     repaid = Decimal(await db.scalar(_REPAID, {**params, "method": None}) or 0)
     cash_repaid = Decimal(await db.scalar(_REPAID, {**params, "method": "cash"}) or 0)
+    received = Decimal(await db.scalar(_RECEIVED, {**params, "method": None}) or 0)
+    cash_received = Decimal(await db.scalar(_RECEIVED, {**params, "method": "cash"}) or 0)
     return {
         "collected": collected,
         "repaid": repaid,
         "expenses": expenses,
         "deposits": deposits,
-        "closing": collected + repaid - expenses - deposits,
+        "received": received,
+        "closing": collected + repaid + received - expenses - deposits,
         "cash_collected": cash_collected,
         "cash_repaid": cash_repaid,
-        "hand_cash_closing": cash_collected + cash_repaid - cash_expenses - deposits,
+        "hand_cash_closing": cash_collected
+        + cash_repaid
+        + cash_received
+        - cash_expenses
+        - deposits,
     }
 
 
@@ -86,6 +100,7 @@ async def cashier_box(db: AsyncSession, on_date: dt.date) -> CashierBoxOut:
         repaid=cur["repaid"] - prev["repaid"],
         expenses=cur["expenses"] - prev["expenses"],
         deposited=cur["deposits"] - prev["deposits"],
+        received=cur["received"] - prev["received"],
         closing=cur["closing"],
         hand_cash_opening=prev["hand_cash_closing"],
         hand_cash_collected=cur["cash_collected"] - prev["cash_collected"],

@@ -1,5 +1,5 @@
-"""Correction routes: edit or delete purchase entries, expenses, deposits, balance entries and
-credits. A reason is required; closed days are owner-only (day_lock → 409)."""
+"""Correction routes: edit or delete purchase entries, expenses, deposits and balance entries.
+A reason is required; closed days are owner-only (day_lock → 409)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from app.db.models import User
 from app.schemas.corrections import (
     BalanceEntryEdit,
     BalanceEntryOut,
-    CreditEdit,
     ExpenseEdit,
     Reason,
     StockEntryEdit,
@@ -177,27 +176,4 @@ async def delete_customer_balance(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     await _run(service.delete_balance_entry(db, "customer", entry_id, body.reason, actor))
-    return _done()
-
-
-# ---- Credits ----
-@router.put("/credits/{credit_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def edit_credit(
-    credit_id: uuid.UUID,
-    body: CreditEdit,
-    actor: User = Depends(require_roles(*_OFFICE)),
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    await _run(service.edit_credit(db, credit_id, body, actor))
-    return _done()
-
-
-@router.post("/credits/{credit_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_credit(
-    credit_id: uuid.UUID,
-    body: Reason,
-    actor: User = Depends(require_roles(*_OFFICE)),
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    await _run(service.delete_credit(db, credit_id, body.reason, actor))
     return _done()

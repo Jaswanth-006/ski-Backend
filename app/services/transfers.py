@@ -1,9 +1,10 @@
-"""Deposit / transfer service (Phase 8-C).
+"""Deposit / transfer service.
 
-Records money moving out of a source (cashier box or bank account) to a destination
-(vendor, person, or own bank account). Bank-account balances are derived from these rows;
-the cashier box (services/cashier_box.py) subtracts box-sourced transfers. Insufficient
-balance is allowed (accounting, not real banking) — the UI simply warns.
+Records money moving from a source (cashier box, bank account or person) to a destination
+(vendor, person, bank account or cashier box). Bank-account, vendor and person balances are
+derived from these rows plus each one's opening balance; the cashier box
+(services/cashier_box.py) subtracts box-sourced transfers and adds transfers into it.
+Insufficient balance is allowed (accounting, not real banking) — the UI simply warns.
 """
 
 from __future__ import annotations
@@ -15,13 +16,13 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Bank, BankAccount, Transfer, Vendor
+from app.db.models import Bank, BankAccount, Person, Transfer, Vendor
 from app.schemas.transfers import TransferCreate, TransferOut
 from app.services import audit
 
 
 class InvalidReference(Exception):
-    """A referenced bank account or vendor does not exist."""
+    """A referenced bank account, vendor or person does not exist."""
 
 
 async def _account_label(db: AsyncSession, account_id: uuid.UUID) -> str:
@@ -38,9 +39,18 @@ async def _account_label(db: AsyncSession, account_id: uuid.UUID) -> str:
     return f"{bank_name} · {account_type}" + (f" ({label})" if label else "")
 
 
+async def _person_label(db: AsyncSession, person_id: uuid.UUID | None) -> str:
+    if person_id is None:
+        return "—"
+    name = await db.scalar(select(Person.name).where(Person.id == person_id))
+    return name or "—"
+
+
 async def _source_label(db: AsyncSession, t: Transfer) -> str:
     if t.source_kind == "cashier_box":
         return "Cashier box"
+    if t.source_kind == "person":
+        return await _person_label(db, t.source_person_id)
     assert t.source_bank_account_id is not None
     return await _account_label(db, t.source_bank_account_id)
 
@@ -53,6 +63,10 @@ async def _dest_label(db: AsyncSession, t: Transfer) -> str:
     if t.dest_kind == "bank_account":
         assert t.dest_bank_account_id is not None
         return await _account_label(db, t.dest_bank_account_id)
+    if t.dest_kind == "cashier_box":
+        return "Cashier box"
+    if t.dest_person_id is not None:
+        return await _person_label(db, t.dest_person_id)
     return t.dest_person_name or "—"
 
 
@@ -63,8 +77,10 @@ async def _to_out(db: AsyncSession, t: Transfer) -> TransferOut:
         amount=t.amount,
         source_kind=t.source_kind,
         source_label=await _source_label(db, t),
+        source_person_id=t.source_person_id,
         dest_kind=t.dest_kind,
         dest_label=await _dest_label(db, t),
+        dest_person_id=t.dest_person_id,
         method=t.method,
         note=t.note,
         created_at=t.created_at,
@@ -78,6 +94,10 @@ async def create_transfer(
     if data.source_kind == "bank_account":
         if await db.get(BankAccount, data.source_bank_account_id) is None:
             raise InvalidReference("source account")
+    if data.source_kind == "person" and await db.get(Person, data.source_person_id) is None:
+        raise InvalidReference("person")
+    if data.dest_kind == "person" and await db.get(Person, data.dest_person_id) is None:
+        raise InvalidReference("person")
     if data.dest_kind == "vendor" and await db.get(Vendor, data.dest_vendor_id) is None:
         raise InvalidReference("vendor")
     if (
@@ -91,10 +111,11 @@ async def create_transfer(
         amount=data.amount,
         source_kind=data.source_kind,
         source_bank_account_id=data.source_bank_account_id,
+        source_person_id=data.source_person_id,
         dest_kind=data.dest_kind,
         dest_vendor_id=data.dest_vendor_id,
         dest_bank_account_id=data.dest_bank_account_id,
-        dest_person_name=data.dest_person_name,
+        dest_person_id=data.dest_person_id,
         method=data.method,
         note=data.note,
         created_by=actor_id,
@@ -127,7 +148,7 @@ async def list_transfers(
 
 
 async def bank_account_balances(db: AsyncSession) -> dict[uuid.UUID, Decimal]:
-    """Per-account running balance = money in (transfers into it) − money out."""
+    """Per-account movement = money in (transfers into it) − money out (add the opening)."""
     balances: dict[uuid.UUID, Decimal] = {}
     into = await db.execute(
         select(Transfer.dest_bank_account_id, func.sum(Transfer.amount))
@@ -146,3 +167,36 @@ async def bank_account_balances(db: AsyncSession) -> dict[uuid.UUID, Decimal]:
         if acc_id is not None:
             balances[acc_id] = balances.get(acc_id, Decimal(0)) - Decimal(total)
     return balances
+
+
+async def vendor_paid(db: AsyncSession) -> dict[uuid.UUID, Decimal]:
+    """Per-vendor total paid through deposits in the app (add the opening)."""
+    rows = await db.execute(
+        select(Transfer.dest_vendor_id, func.sum(Transfer.amount))
+        .where(Transfer.dest_kind == "vendor")
+        .group_by(Transfer.dest_vendor_id)
+    )
+    return {vid: Decimal(total) for vid, total in rows if vid is not None}
+
+
+async def person_flows(db: AsyncSession) -> dict[uuid.UUID, tuple[Decimal, Decimal]]:
+    """Per-person (given to them, received from them)."""
+    flows: dict[uuid.UUID, tuple[Decimal, Decimal]] = {}
+    given = await db.execute(
+        select(Transfer.dest_person_id, func.sum(Transfer.amount))
+        .where(Transfer.dest_kind == "person")
+        .group_by(Transfer.dest_person_id)
+    )
+    for pid, total in given:
+        if pid is not None:
+            flows[pid] = (Decimal(total), Decimal(0))
+    received = await db.execute(
+        select(Transfer.source_person_id, func.sum(Transfer.amount))
+        .where(Transfer.source_kind == "person")
+        .group_by(Transfer.source_person_id)
+    )
+    for pid, total in received:
+        if pid is not None:
+            g, _ = flows.get(pid, (Decimal(0), Decimal(0)))
+            flows[pid] = (g, Decimal(total))
+    return flows
