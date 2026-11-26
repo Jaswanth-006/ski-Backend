@@ -10,6 +10,8 @@ from app.core.config import Settings
 from app.core.logging import JsonFormatter, request_id_ctx
 from app.core.observability import init_sentry
 from httpx import AsyncClient
+from sentry_sdk.envelope import Envelope
+from sentry_sdk.transport import Transport
 
 from tests.conftest import SeededUsers
 
@@ -47,19 +49,35 @@ def test_sentry_disabled_without_dsn() -> None:
     assert init_sentry(Settings(sentry_dsn=None)) is False
 
 
+class _CaptureTransport(Transport):
+    """Keeps envelopes in memory instead of sending them (sentry-sdk 3 needs a Transport)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.envelopes: list[Envelope] = []
+
+    def capture_envelope(self, envelope: Envelope) -> None:
+        self.envelopes.append(envelope)
+
+
 def test_sentry_captures_exception_with_dsn() -> None:
-    captured: list[object] = []
+    transport = _CaptureTransport()
     settings = Settings(
         sentry_dsn="https://examplePublicKey@o0.ingest.sentry.io/0", environment="test"
     )
-    assert init_sentry(settings, transport=captured.append) is True
+    assert init_sentry(settings, transport=transport) is True
     try:
         raise ValueError("boom-observability")
     except ValueError:
         sentry_sdk.capture_exception()
     sentry_sdk.flush()
     try:
-        assert any("boom-observability" in json.dumps(e, default=str) for e in captured)
+        payloads = [
+            json.dumps(item.payload.json, default=str)
+            for envelope in transport.envelopes
+            for item in envelope.items
+        ]
+        assert any("boom-observability" in p for p in payloads)
     finally:
         sentry_sdk.get_client().close()
 
