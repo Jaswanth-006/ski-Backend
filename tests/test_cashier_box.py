@@ -119,6 +119,13 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
                 "upi_total": 0,
             },
         )
+        debtor = (
+            await http.post(
+                "/v1/people",
+                headers=admin,
+                json={"name": f"ZZ Box {uuid.uuid4().hex[:8]}", "kind": "debtor"},
+            )
+        ).json()["id"]
         await http.post(
             "/v1/transfers",
             headers=admin,
@@ -127,7 +134,7 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
                 "amount": 500,
                 "source_kind": "cashier_box",
                 "dest_kind": "person",
-                "dest_person_name": "Owner",
+                "dest_person_id": debtor,
                 "method": "cash",
             },
         )
@@ -137,5 +144,25 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
         assert d2["deposited"] == 500
         assert d2["closing"] == 2500  # 2000 + 1000 − 500
         assert d2["hand_cash_closing"] == 2500  # all cash: 2000 + 1000 − 500 deposit
+
+        # The debtor pays 300 back into the box: the box goes up.
+        r = await http.post(
+            "/v1/transfers",
+            headers=admin,
+            json={
+                "business_date": D2.isoformat(),
+                "amount": 300,
+                "source_kind": "person",
+                "source_person_id": debtor,
+                "dest_kind": "cashier_box",
+                "method": "cash",
+            },
+        )
+        assert r.status_code == 201, r.text
+        assert r.json()["dest_label"] == "Cashier box"
+        d2 = await _box(http, admin, D2)
+        assert d2["received"] == 300
+        assert d2["closing"] == 2800
+        assert d2["hand_cash_closing"] == 2800
     finally:
         await _cleanup()

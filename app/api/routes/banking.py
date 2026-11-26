@@ -1,7 +1,8 @@
-"""Banking master-data routes (Phase 8-B) — banks, bank accounts, vendors.
+"""Banking master-data routes — banks, bank accounts, vendors, people (debtors / creditors).
 
-GET is available to owner + office (they drive the deposit form); create/edit/(de)activate
-are owner-only. Soft-delete keeps history intact.
+GET is available to owner + office (they drive the deposit form). Banks, accounts and vendors
+are created/edited by the owner only. People can be added by owner + office; changing a
+person's opening balance after it was set is owner-only. Soft-delete keeps history intact.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_roles
-from app.db.models import Bank, User, Vendor
+from app.db.models import Bank, User
 from app.schemas.banking import (
     BankAccountCreate,
     BankAccountOut,
@@ -20,6 +21,10 @@ from app.schemas.banking import (
     BankCreate,
     BankOut,
     BankUpdate,
+    PersonCreate,
+    PersonKind,
+    PersonOut,
+    PersonUpdate,
     VendorCreate,
     VendorOut,
     VendorUpdate,
@@ -150,7 +155,7 @@ async def list_vendors(
     active: str = "true",
     _: User = Depends(require_roles(*_OFFICE)),
     db: AsyncSession = Depends(get_db),
-) -> list[Vendor]:
+) -> list[VendorOut]:
     return await banking_service.list_vendors(db, active=active)
 
 
@@ -159,7 +164,7 @@ async def create_vendor(
     body: VendorCreate,
     actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
-) -> Vendor:
+) -> VendorOut:
     try:
         result = await banking_service.create_vendor(db, body)
     except banking_service.NameAlreadyExists as exc:
@@ -183,7 +188,7 @@ async def update_vendor(
     body: VendorUpdate,
     actor: User = Depends(require_roles(*_OWNER)),
     db: AsyncSession = Depends(get_db),
-) -> Vendor:
+) -> VendorOut:
     try:
         row = await banking_service.update_vendor(db, vendor_id, body)
     except banking_service.NameAlreadyExists as exc:
@@ -198,6 +203,72 @@ async def update_vendor(
         "vendor.update",
         "vendor",
         vendor_id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return row
+
+
+# ---- People (debtors / creditors) ----
+@router.get("/people", response_model=list[PersonOut])
+async def list_people(
+    active: str = "true",
+    kind: PersonKind | None = None,
+    _: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_db),
+) -> list[PersonOut]:
+    return await banking_service.list_people(db, active=active, kind=kind)
+
+
+@router.post("/people", response_model=PersonOut, status_code=status.HTTP_201_CREATED)
+async def create_person(
+    body: PersonCreate,
+    actor: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_db),
+) -> PersonOut:
+    try:
+        result = await banking_service.create_person(db, body)
+    except banking_service.NameAlreadyExists as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail=f"a {body.kind} with this name exists"
+        ) from exc
+    await audit.record(
+        db,
+        actor.id,
+        "person.create",
+        "person",
+        result.id,
+        new=body.model_dump(mode="json", exclude_unset=True),
+    )
+    return result
+
+
+@router.patch("/people/{person_id}", response_model=PersonOut)
+async def update_person(
+    person_id: uuid.UUID,
+    body: PersonUpdate,
+    actor: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_db),
+) -> PersonOut:
+    try:
+        row = await banking_service.update_person(
+            db, person_id, body, is_owner=actor.role == "super_admin"
+        )
+    except banking_service.NameAlreadyExists as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="a person with this name exists"
+        ) from exc
+    except banking_service.OwnerOnly as exc:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="only the owner can change an opening balance"
+        ) from exc
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="person not found")
+    await audit.record(
+        db,
+        actor.id,
+        "person.update",
+        "person",
+        person_id,
         new=body.model_dump(mode="json", exclude_unset=True),
     )
     return row

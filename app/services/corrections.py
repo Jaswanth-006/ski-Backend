@@ -1,5 +1,5 @@
-"""Edit or delete recorded entries: purchase (stock), expenses, deposits, balance entries,
-credits. (Sales are corrected through services/sales.py: cancel / edit.)
+"""Edit or delete recorded entries: purchase (stock), expenses, deposits and balance entries.
+(Sales are corrected through services/sales.py: cancel / edit.)
 
 Rules for every correction:
 - a reason is required and the old and new values go to the audit log;
@@ -19,7 +19,6 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    Credit,
     CustomerBalance,
     DeliveryBalance,
     Expense,
@@ -33,7 +32,6 @@ from app.db.models import (
 from app.schemas.corrections import (
     BalanceEntryEdit,
     BalanceEntryOut,
-    CreditEdit,
     ExpenseEdit,
     StockEntryEdit,
     StockEntryLine,
@@ -493,56 +491,5 @@ async def delete_balance_entry(
         entry_id,
         old=old,
         new={"reason": reason},
-    )
-    await db.commit()
-
-
-# ---------------------------------------------------------------- credits
-
-
-async def _load_credit(db: AsyncSession, credit_id: uuid.UUID) -> Credit:
-    row = await db.scalar(select(Credit).where(Credit.id == credit_id).with_for_update())
-    if row is None:
-        raise EntryNotFound()
-    return row
-
-
-def _credit_snapshot(c: Credit) -> dict[str, Any]:
-    return {
-        "person_name": c.person_name,
-        "amount": _money(c.amount),
-        "given_date": str(c.given_date),
-        "note": c.note,
-    }
-
-
-async def edit_credit(
-    db: AsyncSession, credit_id: uuid.UUID, data: CreditEdit, actor: User
-) -> uuid.UUID:
-    row = await _load_credit(db, credit_id)
-    old = _credit_snapshot(row)
-    row.person_name = data.person_name.strip()
-    row.amount = data.amount
-    row.given_date = data.given_date
-    row.note = data.note
-    await audit.write(
-        db,
-        actor.id,
-        "credit.edit",
-        "credit",
-        credit_id,
-        old=old,
-        new={**_credit_snapshot(row), "reason": data.reason},
-    )
-    await db.commit()
-    return credit_id
-
-
-async def delete_credit(db: AsyncSession, credit_id: uuid.UUID, reason: str, actor: User) -> None:
-    row = await _load_credit(db, credit_id)
-    old = _credit_snapshot(row)
-    await db.delete(row)
-    await audit.write(
-        db, actor.id, "credit.delete", "credit", credit_id, old=old, new={"reason": reason}
     )
     await db.commit()

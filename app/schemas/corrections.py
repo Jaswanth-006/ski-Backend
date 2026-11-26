@@ -133,18 +133,3 @@ class BalanceEntryOut(BaseModel):
     note: str | None
     invoice_no: str | None  # set when a sale created it (edit that invoice instead)
     created_at: dt.datetime
-
-
-# ---- Credits ----
-
-
-class CreditEdit(Reason):
-    person_name: str = Field(min_length=1, max_length=120)
-    amount: Decimal = Field(gt=0)
-    given_date: dt.date
-    note: str | None = Field(default=None, max_length=280)
-
-    @field_validator("amount")
-    @classmethod
-    def _paise(cls, v: Decimal) -> Decimal:
-        return to_paise(v)

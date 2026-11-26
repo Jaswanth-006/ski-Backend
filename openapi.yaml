@@ -468,68 +468,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /v1/credits/{credit_id}:
-    put:
-      tags:
-      - corrections
-      summary: Edit Credit
-      operationId: edit_credit_v1_credits__credit_id__put
-      security:
-      - HTTPBearer: []
-      parameters:
-      - name: credit_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Credit Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreditEdit'
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/credits/{credit_id}/delete:
-    post:
-      tags:
-      - corrections
-      summary: Delete Credit
-      operationId: delete_credit_v1_credits__credit_id__delete_post
-      security:
-      - HTTPBearer: []
-      parameters:
-      - name: credit_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Credit Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Reason'
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /v1/users:
     get:
       tags:
@@ -1545,101 +1483,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /v1/credits:
-    get:
-      tags:
-      - credits
-      summary: List Credits
-      operationId: list_credits_v1_credits_get
-      security:
-      - HTTPBearer: []
-      parameters:
-      - name: settled
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          title: Settled
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CreditOut'
-                title: Response List Credits V1 Credits Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    post:
-      tags:
-      - credits
-      summary: Create Credit
-      operationId: create_credit_v1_credits_post
-      security:
-      - HTTPBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreditCreate'
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreditOut'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/credits/{credit_id}/settle:
-    post:
-      tags:
-      - credits
-      summary: Settle Credit
-      operationId: settle_credit_v1_credits__credit_id__settle_post
-      security:
-      - HTTPBearer: []
-      parameters:
-      - name: credit_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Credit Id
-      - name: settled
-        in: query
-        required: false
-        schema:
-          type: boolean
-          default: true
-          title: Settled
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreditOut'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /v1/customers:
     get:
       tags:
@@ -2554,6 +2397,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/people:
+    get:
+      tags:
+      - banking
+      summary: List People
+      operationId: list_people_v1_people_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: string
+          default: 'true'
+          title: Active
+      - name: kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - debtor
+            - creditor
+            type: string
+          - type: 'null'
+          title: Kind
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PersonOut'
+                title: Response List People V1 People Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - banking
+      summary: Create Person
+      operationId: create_person_v1_people_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/people/{person_id}:
+    patch:
+      tags:
+      - banking
+      summary: Update Person
+      operationId: update_person_v1_people__person_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: person_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Person Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/transfers:
     post:
       tags:
@@ -3252,6 +3199,12 @@ components:
             maxLength: 120
           - type: 'null'
           title: Label
+        opening_balance:
+          anyOf:
+          - type: number
+          - type: string
+          title: Opening Balance
+          default: '0'
       type: object
       required:
       - bank_id
@@ -3281,6 +3234,9 @@ components:
         is_active:
           type: boolean
           title: Is Active
+        opening_balance:
+          type: string
+          title: Opening Balance
         balance:
           type: string
           title: Balance
@@ -3292,6 +3248,7 @@ components:
       - account_type
       - label
       - is_active
+      - opening_balance
       - balance
       title: BankAccountOut
     BankAccountUpdate:
@@ -3309,6 +3266,12 @@ components:
             maxLength: 120
           - type: 'null'
           title: Label
+        opening_balance:
+          anyOf:
+          - type: number
+          - type: string
+          - type: 'null'
+          title: Opening Balance
         is_active:
           anyOf:
           - type: boolean
@@ -3382,6 +3345,10 @@ components:
         deposited:
           type: string
           title: Deposited
+        received:
+          type: string
+          title: Received
+          default: '0'
         closing:
           type: string
           title: Closing
@@ -3436,115 +3403,6 @@ components:
       required:
       - points
       title: CollectionsTrendOut
-    CreditCreate:
-      properties:
-        person_name:
-          type: string
-          maxLength: 120
-          minLength: 1
-          title: Person Name
-        amount:
-          anyOf:
-          - type: number
-            exclusiveMinimum: 0.0
-          - type: string
-          title: Amount
-        given_date:
-          type: string
-          format: date
-          title: Given Date
-        note:
-          anyOf:
-          - type: string
-            maxLength: 280
-          - type: 'null'
-          title: Note
-      type: object
-      required:
-      - person_name
-      - amount
-      - given_date
-      title: CreditCreate
-    CreditEdit:
-      properties:
-        reason:
-          type: string
-          maxLength: 280
-          minLength: 3
-          title: Reason
-        person_name:
-          type: string
-          maxLength: 120
-          minLength: 1
-          title: Person Name
-        amount:
-          anyOf:
-          - type: number
-            exclusiveMinimum: 0.0
-          - type: string
-          title: Amount
-        given_date:
-          type: string
-          format: date
-          title: Given Date
-        note:
-          anyOf:
-          - type: string
-            maxLength: 280
-          - type: 'null'
-          title: Note
-      type: object
-      required:
-      - reason
-      - person_name
-      - amount
-      - given_date
-      title: CreditEdit
-    CreditOut:
-      properties:
-        id:
-          type: string
-          format: uuid
-          title: Id
-        person_name:
-          type: string
-          title: Person Name
-        amount:
-          type: string
-          title: Amount
-        given_date:
-          type: string
-          format: date
-          title: Given Date
-        note:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Note
-        is_settled:
-          type: boolean
-          title: Is Settled
-        settled_date:
-          anyOf:
-          - type: string
-            format: date
-          - type: 'null'
-          title: Settled Date
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-      type: object
-      required:
-      - id
-      - person_name
-      - amount
-      - given_date
-      - note
-      - is_settled
-      - settled_date
-      - created_at
-      title: CreditOut
     CustomerBalanceCreate:
       properties:
         customer_id:
@@ -4920,6 +4778,137 @@ components:
       - online
       - balance
       title: MonthSheetTotals
+    PersonCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        kind:
+          type: string
+          enum:
+          - debtor
+          - creditor
+          title: Kind
+        phone:
+          anyOf:
+          - type: string
+            maxLength: 20
+          - type: 'null'
+          title: Phone
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+        opening_balance:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+          title: Opening Balance
+          default: '0'
+      type: object
+      required:
+      - name
+      - kind
+      title: PersonCreate
+    PersonOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - debtor
+          - creditor
+          title: Kind
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        is_active:
+          type: boolean
+          title: Is Active
+        opening_balance:
+          type: string
+          title: Opening Balance
+        given:
+          type: string
+          title: Given
+        received:
+          type: string
+          title: Received
+        balance:
+          type: string
+          title: Balance
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - kind
+      - phone
+      - note
+      - is_active
+      - opening_balance
+      - given
+      - received
+      - balance
+      - created_at
+      title: PersonOut
+    PersonUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        phone:
+          anyOf:
+          - type: string
+            maxLength: 20
+          - type: 'null'
+          title: Phone
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+        opening_balance:
+          anyOf:
+          - anyOf:
+            - type: number
+            - type: string
+            ge: 0
+          - type: 'null'
+          title: Opening Balance
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: PersonUpdate
     PriceBulkItem:
       properties:
         cylinder_type_id:
@@ -5758,6 +5747,7 @@ components:
           enum:
           - cashier_box
           - bank_account
+          - person
           title: Source Kind
         source_bank_account_id:
           anyOf:
@@ -5765,12 +5755,19 @@ components:
             format: uuid
           - type: 'null'
           title: Source Bank Account Id
+        source_person_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Person Id
         dest_kind:
           type: string
           enum:
           - vendor
           - person
           - bank_account
+          - cashier_box
           title: Dest Kind
         dest_vendor_id:
           anyOf:
@@ -5784,12 +5781,12 @@ components:
             format: uuid
           - type: 'null'
           title: Dest Bank Account Id
-        dest_person_name:
+        dest_person_id:
           anyOf:
           - type: string
-            maxLength: 120
+            format: uuid
           - type: 'null'
-          title: Dest Person Name
+          title: Dest Person Id
         method:
           type: string
           maxLength: 40
@@ -5864,20 +5861,34 @@ components:
           enum:
           - cashier_box
           - bank_account
+          - person
           title: Source Kind
         source_label:
           type: string
           title: Source Label
+        source_person_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Person Id
         dest_kind:
           type: string
           enum:
           - vendor
           - person
           - bank_account
+          - cashier_box
           title: Dest Kind
         dest_label:
           type: string
           title: Dest Label
+        dest_person_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Dest Person Id
         method:
           type: string
           title: Method
@@ -6017,6 +6028,13 @@ components:
           maxLength: 120
           minLength: 1
           title: Name
+        opening_balance:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+          title: Opening Balance
+          default: '0'
       type: object
       required:
       - name
@@ -6033,11 +6051,23 @@ components:
         is_active:
           type: boolean
           title: Is Active
+        opening_balance:
+          type: string
+          title: Opening Balance
+        paid:
+          type: string
+          title: Paid
+        total_paid:
+          type: string
+          title: Total Paid
       type: object
       required:
       - id
       - name
       - is_active
+      - opening_balance
+      - paid
+      - total_paid
       title: VendorOut
     VendorUpdate:
       properties:
@@ -6048,6 +6078,14 @@ components:
             minLength: 1
           - type: 'null'
           title: Name
+        opening_balance:
+          anyOf:
+          - anyOf:
+            - type: number
+            - type: string
+            ge: 0
+          - type: 'null'
+          title: Opening Balance
         is_active:
           anyOf:
           - type: boolean

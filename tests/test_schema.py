@@ -28,7 +28,7 @@ EXPECTED_TABLES = {
     "stock_loads",  # added in Phase 8-D
     "accessories",  # added in stock v2
     "delivery_other_sales",  # added in Phase C
-    "credits",  # added in Phase E
+    "people",  # debtors / creditors, replaced credits
     "customers",  # added in Phase I
     "delivery_balances",  # added in Phase K
     "customer_balances",  # added with sale invoice numbers

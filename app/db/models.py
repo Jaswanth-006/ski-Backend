@@ -280,29 +280,6 @@ class SaleLine(Base):
     )
 
 
-class Credit(Base):
-    """Money given to a person, tracked until repaid (receivables ledger)."""
-
-    __tablename__ = "credits"
-    __table_args__ = (CheckConstraint("amount > 0", name="ck_credits_amount_pos"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    person_name: Mapped[str] = mapped_column(Text, nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    given_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_settled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
-    settled_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-
 class DeliveryBalance(Base):
     """A charge (boy owes) or repayment (boy paid back) on a delivery boy's balance."""
 
@@ -555,6 +532,10 @@ class BankAccount(Base):
     )
     account_type: Mapped[str] = mapped_column(Text, nullable=False)
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Money in the account when it was added to the app.
+    opening_balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default=text("0")
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
 
@@ -569,7 +550,37 @@ class Vendor(Base):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    # Amount already paid to the vendor before using the app.
+    opening_balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default=text("0")
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class Person(Base):
+    """Debtor: we gave them money (they owe us). Creditor: they lent the company money (we owe)."""
+
+    __tablename__ = "people"
+    __table_args__ = (
+        CheckConstraint("kind IN ('debtor','creditor')", name="people_kind_check"),
+        UniqueConstraint("name", "kind", name="uq_people_name_kind"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What they owed us (debtor) / we owed them (creditor) when added.
+    opening_balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default=text("0")
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 # ============ Transfers / deposits (Phase 8-C) ============
@@ -578,10 +589,12 @@ class Transfer(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_transfers_amount_pos"),
         CheckConstraint(
-            "source_kind IN ('cashier_box','bank_account')", name="ck_transfers_source_kind"
+            "source_kind IN ('cashier_box','bank_account','person')",
+            name="ck_transfers_source_kind",
         ),
         CheckConstraint(
-            "dest_kind IN ('vendor','person','bank_account')", name="ck_transfers_dest_kind"
+            "dest_kind IN ('vendor','person','bank_account','cashier_box')",
+            name="ck_transfers_dest_kind",
         ),
         Index("idx_transfers_date", "business_date"),
     )
@@ -595,6 +608,9 @@ class Transfer(Base):
     source_bank_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bank_accounts.id"), nullable=True
     )
+    source_person_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("people.id"), nullable=True
+    )
     dest_kind: Mapped[str] = mapped_column(Text, nullable=False)
     dest_vendor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=True
@@ -602,6 +618,10 @@ class Transfer(Base):
     dest_bank_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bank_accounts.id"), nullable=True
     )
+    dest_person_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("people.id"), nullable=True
+    )
+    # Legacy: typed-in name from before the people list (kept for old rows).
     dest_person_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     method: Mapped[str] = mapped_column(Text, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -92,12 +92,14 @@ _EXPENSES = text(
 _DEPOSITS = text(
     """
     SELECT t.dest_kind AS kind,
-           COALESCE(v.name, b.name || ' · ' || ba.account_type, t.dest_person_name) AS recipient,
+           COALESCE(v.name, b.name || ' · ' || ba.account_type, p.name, t.dest_person_name,
+                    'Cashier box') AS recipient,
            SUM(t.amount) AS total, COUNT(*) AS cnt
     FROM transfers t
     LEFT JOIN vendors v ON v.id = t.dest_vendor_id
     LEFT JOIN bank_accounts ba ON ba.id = t.dest_bank_account_id
     LEFT JOIN banks b ON b.id = ba.bank_id
+    LEFT JOIN people p ON p.id = t.dest_person_id
     WHERE t.business_date BETWEEN :start AND :end
     GROUP BY t.dest_kind, recipient
     ORDER BY total DESC

@@ -69,7 +69,7 @@ class ExpenseReportRow(BaseModel):
 
 
 class DepositReportRow(BaseModel):
-    kind: str  # vendor | person | bank_account
+    kind: str  # vendor | person | bank_account | cashier_box
     recipient: str
     total: Decimal
     count: int
