@@ -17,10 +17,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import business_today
-from app.db.models import Inventory, StockLedger
+from app.db.models import BankAccount, Inventory, StockLedger, Transfer, Vendor
 from app.schemas.stock import (
     Ac4AccessoryLine,
     Ac4CylinderLine,
+    Ac4Payment,
     AccessoryStockRow,
     CylinderStockRow,
     ErvLine,
@@ -101,10 +102,23 @@ async def record_ac4(
     created_by: uuid.UUID,
     invoice_no: str,
     business_date: dt.date | None = None,
+    payment: Ac4Payment | None = None,
 ) -> None:
-    """Stock received from the plant: full cylinders and/or accessories added to stock."""
+    """Stock received from the plant: full cylinders and/or accessories added to stock.
+
+    With ``payment`` the money paid to the vendor is recorded in the same transaction as a
+    deposit (cashier box or bank account → vendor) linked to this entry.
+    """
     bd = business_date or business_today()
     await ensure_invoice_free(db, invoice_no)
+    if payment is not None:
+        if await db.get(Vendor, payment.vendor_id) is None:
+            raise InvalidReference("invalid vendor")
+        if (
+            payment.source_bank_account_id is not None
+            and await db.get(BankAccount, payment.source_bank_account_id) is None
+        ):
+            raise InvalidReference("invalid bank account")
     entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     try:
         for line in cylinders:
@@ -144,6 +158,21 @@ async def record_ac4(
                     created_by=created_by,
                 )
             )
+        if payment is not None:
+            db.add(
+                Transfer(
+                    business_date=bd,
+                    amount=payment.amount,
+                    source_kind=payment.source_kind,
+                    source_bank_account_id=payment.source_bank_account_id,
+                    dest_kind="vendor",
+                    dest_vendor_id=payment.vendor_id,
+                    method=payment.method,
+                    note=f"ac4 invoice {invoice_no}",
+                    stock_entry_id=entry_id,
+                    created_by=created_by,
+                )
+            )
         await audit.write(
             db,
             created_by,
@@ -152,6 +181,7 @@ async def record_ac4(
             str(bd),
             new={
                 "invoice_no": invoice_no,
+                "payment": payment.model_dump(mode="json") if payment else None,
                 "cylinders": [
                     {"cylinder_type_id": str(x.cylinder_type_id), "qty": x.qty} for x in cylinders
                 ],

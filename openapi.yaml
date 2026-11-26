@@ -2924,6 +2924,44 @@ components:
       - cylinder_type_id
       - qty
       title: Ac4CylinderLine
+    Ac4Payment:
+      properties:
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Amount
+        vendor_id:
+          type: string
+          format: uuid
+          title: Vendor Id
+        source_kind:
+          type: string
+          enum:
+          - cashier_box
+          - bank_account
+          title: Source Kind
+          default: cashier_box
+        source_bank_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Bank Account Id
+        method:
+          type: string
+          maxLength: 40
+          minLength: 1
+          title: Method
+          default: cash
+      type: object
+      required:
+      - amount
+      - vendor_id
+      title: Ac4Payment
+      description: Money paid to the vendor for this purchase, recorded as a deposit
+        with it.
     Ac4Request:
       properties:
         invoice_no:
@@ -2947,6 +2985,10 @@ components:
             $ref: '#/components/schemas/Ac4AccessoryLine'
           type: array
           title: Accessories
+        payment:
+          anyOf:
+          - $ref: '#/components/schemas/Ac4Payment'
+          - type: 'null'
       type: object
       required:
       - invoice_no
@@ -5517,6 +5559,16 @@ components:
             $ref: '#/components/schemas/StockEntryLineOut'
           type: array
           title: Lines
+        payment_amount:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payment Amount
+        payment_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payment Label
         created_at:
           type: string
           format: date-time

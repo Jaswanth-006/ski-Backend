@@ -49,6 +49,7 @@ async def stock_ac4(
             created_by=current_user.id,
             invoice_no=body.invoice_no,
             business_date=body.business_date,
+            payment=body.payment,
         )
     except stock_service.DuplicatePurchaseInvoice as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
