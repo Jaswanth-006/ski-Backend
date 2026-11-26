@@ -135,6 +135,22 @@ async def create_transfer(
     return await _to_out(db, t)
 
 
+async def payments_for_entries(
+    db: AsyncSession, entry_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[Decimal, str]]:
+    """Payments recorded with ac4 entries: entry id → (total amount, "source → vendor")."""
+    if not entry_ids:
+        return {}
+    rows = await db.scalars(select(Transfer).where(Transfer.stock_entry_id.in_(entry_ids)))
+    out: dict[uuid.UUID, tuple[Decimal, str]] = {}
+    for t in rows:
+        assert t.stock_entry_id is not None
+        label = f"{await _source_label(db, t)} → {await _dest_label(db, t)}"
+        prev = out.get(t.stock_entry_id)
+        out[t.stock_entry_id] = (t.amount + (prev[0] if prev else Decimal(0)), label)
+    return out
+
+
 async def list_transfers(
     db: AsyncSession, start: dt.date | None = None, end: dt.date | None = None
 ) -> list[TransferOut]:

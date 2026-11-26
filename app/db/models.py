@@ -625,6 +625,8 @@ class Transfer(Base):
     dest_person_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     method: Mapped[str] = mapped_column(Text, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set when this is the payment recorded with an ac4 purchase (stock_ledger.entry_id).
+    stock_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

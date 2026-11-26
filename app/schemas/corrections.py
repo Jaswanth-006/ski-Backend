@@ -57,6 +57,9 @@ class StockEntryOut(BaseModel):
     business_date: dt.date
     invoice_no: str | None  # ac4: the IOC invoice
     lines: list[StockEntryLineOut]
+    # ac4: what was paid to the vendor with this purchase, e.g. "Cashier box → IOC".
+    payment_amount: Decimal | None = None
+    payment_label: str | None = None
     created_at: dt.datetime
     created_by_name: str | None
 

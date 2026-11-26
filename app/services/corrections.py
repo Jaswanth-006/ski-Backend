@@ -39,7 +39,7 @@ from app.schemas.corrections import (
     StockEntryOut,
     TransferEdit,
 )
-from app.services import audit, day_lock, stock
+from app.services import audit, day_lock, stock, transfers
 
 STOCK_KINDS = ("ac4", "erv", "return", "intake")
 
@@ -132,7 +132,12 @@ def _group(rows: list[Any]) -> list[StockEntryOut]:
 
 async def list_stock_entries(db: AsyncSession, on_date: dt.date) -> list[StockEntryOut]:
     rows = (await db.execute(_ENTRY_ROWS, {"d": on_date, "e": None})).mappings().all()
-    return _group(list(rows))
+    entries = _group(list(rows))
+    paid = await transfers.payments_for_entries(db, [e.entry_id for e in entries])
+    for e in entries:
+        if e.entry_id in paid:
+            e.payment_amount, e.payment_label = paid[e.entry_id]
+    return entries
 
 
 async def _get_stock_entry(db: AsyncSession, entry_id: uuid.UUID) -> StockEntryOut:
@@ -265,13 +270,21 @@ async def delete_stock_entry(
     entry = await _get_stock_entry(db, entry_id)
     await _guard_dates(db, actor, entry.business_date)
     await _replace_stock_entry(db, entry, None, [], actor)
+    # The payment recorded with the purchase goes too.
+    payments = list(await db.scalars(select(Transfer).where(Transfer.stock_entry_id == entry_id)))
+    for t in payments:
+        await _guard_dates(db, actor, t.business_date)
+        await db.delete(t)
     await audit.write(
         db,
         actor.id,
         f"stock.{entry.kind}.delete",
         "stock",
         entry_id,
-        old=entry.model_dump(mode="json", include={"business_date", "lines"}),
+        old={
+            **entry.model_dump(mode="json", include={"business_date", "lines"}),
+            "payments": [str(t.amount) for t in payments],
+        },
         new={"reason": reason},
     )
     await db.commit()
