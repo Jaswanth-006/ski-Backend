@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 from app.core.config import settings
 from app.db.models import Accessory, CylinderType, Inventory, Price, StockLedger
@@ -79,6 +80,7 @@ async def test_accessory_catalog_and_ac4_erv_overview(
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": D1.isoformat(),
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 100}],
                 "accessories": [{"accessory_id": acc_id, "qty": 20}],
@@ -130,6 +132,7 @@ async def test_return_damaged_or_lost(client: tuple[AsyncClient, SeededUsers]) -
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": D1.isoformat(),
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
                 "accessories": [{"accessory_id": acc_id, "qty": 10}],

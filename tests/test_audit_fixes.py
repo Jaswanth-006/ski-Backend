@@ -78,7 +78,11 @@ async def test_audit_fixes(client: tuple[AsyncClient, SeededUsers]) -> None:
         await http.post(
             "/v1/stock/ac4",
             headers=office,
-            json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 40}]},
+            json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
+                "business_date": DS,
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 40}],
+            },
         )
         item_id = (
             await http.post("/v1/expense-items", headers=admin, json={"name": f"{ITEM_NAME}-{tag}"})
@@ -236,7 +240,11 @@ async def test_audit_fixes(client: tuple[AsyncClient, SeededUsers]) -> None:
             await http.post(
                 "/v1/stock/ac4",
                 headers=office,
-                json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 1}]},
+                json={
+                    "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
+                    "business_date": DS,
+                    "cylinders": [{"cylinder_type_id": type_id, "qty": 1}],
+                },
             ),
             await http.post(
                 "/v1/expenses",

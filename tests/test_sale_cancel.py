@@ -104,7 +104,11 @@ async def test_cancel_and_edit_reverse_everything(client: tuple[AsyncClient, See
         await http.post(
             "/v1/stock/ac4",
             headers=admin,
-            json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 50}]},
+            json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
+                "business_date": DS,
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
+            },
         )
 
         # 10 × 1000 = 10000 = cash 5000 + upi 3000 + balance 2000; 8 empties back.

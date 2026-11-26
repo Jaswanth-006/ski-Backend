@@ -2979,6 +2979,11 @@ components:
       title: Ac4CylinderLine
     Ac4Request:
       properties:
+        invoice_no:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Invoice No
         business_date:
           anyOf:
           - type: string
@@ -2996,6 +3001,8 @@ components:
           type: array
           title: Accessories
       type: object
+      required:
+      - invoice_no
       title: Ac4Request
       description: 'Stock received from the plant: full cylinders and/or accessories
         added to stock.'
@@ -5399,6 +5406,12 @@ components:
           type: string
           format: date
           title: Business Date
+        invoice_no:
+          anyOf:
+          - type: string
+            maxLength: 50
+          - type: 'null'
+          title: Invoice No
         lines:
           items:
             $ref: '#/components/schemas/StockEntryLine'
@@ -5505,6 +5518,11 @@ components:
           type: string
           format: date
           title: Business Date
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
         lines:
           items:
             $ref: '#/components/schemas/StockEntryLineOut'
@@ -5524,6 +5542,7 @@ components:
       - entry_id
       - kind
       - business_date
+      - invoice_no
       - lines
       - created_at
       - created_by_name

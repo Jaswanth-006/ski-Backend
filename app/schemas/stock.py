@@ -6,7 +6,7 @@ import datetime as dt
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Ac4CylinderLine(BaseModel):
@@ -22,9 +22,18 @@ class Ac4AccessoryLine(BaseModel):
 class Ac4Request(BaseModel):
     """Stock received from the plant: full cylinders and/or accessories added to stock."""
 
+    invoice_no: str = Field(min_length=1, max_length=50)  # the IOC invoice for this delivery
     business_date: dt.date | None = None  # defaults to today
     cylinders: list[Ac4CylinderLine] = Field(default_factory=list)
     accessories: list[Ac4AccessoryLine] = Field(default_factory=list)
+
+    @field_validator("invoice_no")
+    @classmethod
+    def _strip_invoice(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("invoice number is required")
+        return v
 
 
 class ErvLine(BaseModel):

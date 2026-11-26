@@ -81,16 +81,36 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
         await http.post(
             "/v1/stock/ac4",
             headers=office,
-            json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 50}]},
+            json={
+                "invoice_no": f"IOC-{tag}",
+                "business_date": DS,
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
+            },
         )
         (ac4,) = await _entries(http, admin, "ac4")
+        assert ac4["invoice_no"] == f"IOC-{tag}"
+
+        # Every ac4 needs an IOC invoice, and one invoice is recorded once (any case).
+        lines50 = [{"cylinder_type_id": type_id, "qty": 5}]
+        no_inv = await http.post(
+            "/v1/stock/ac4", headers=office, json={"business_date": DS, "cylinders": lines50}
+        )
+        assert no_inv.status_code == 422
+        dup = await http.post(
+            "/v1/stock/ac4",
+            headers=office,
+            json={"invoice_no": f"ioc-{tag}", "business_date": DS, "cylinders": lines50},
+        )
+        assert dup.status_code == 409 and "already recorded" in dup.json()["detail"]
+        assert len(await _entries(http, admin, "ac4")) == 1
         line = {"cylinder_type_id": type_id, "condition": "full", "qty": 40}
         edited = await http.put(
             f"/v1/stock/entries/{ac4['entry_id']}",
             headers=office,
-            json={**WHY, "business_date": DS, "lines": [line]},
+            json={**WHY, "business_date": DS, "invoice_no": f"IOC-{tag}-A", "lines": [line]},
         )
         assert edited.status_code == 200, edited.text
+        assert edited.json()["invoice_no"] == f"IOC-{tag}-A"
         assert edited.json()["lines"][0]["qty"] == 40
         assert await _stock(http, admin, type_id) == (40, 40, 0)
 

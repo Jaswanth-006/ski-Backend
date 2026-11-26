@@ -98,6 +98,7 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
             "/v1/stock/ac4",
             headers=admin,
             json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
                 "business_date": DS,
                 "cylinders": [{"cylinder_type_id": type_id, "qty": 500}],
             },
@@ -190,7 +191,11 @@ async def test_delivery_person_ledger(client: tuple[AsyncClient, SeededUsers]) -
         await http.post(
             "/v1/stock/ac4",
             headers=admin,
-            json={"business_date": DS, "cylinders": [{"cylinder_type_id": type_id, "qty": 50}]},
+            json={
+                "invoice_no": f"IOC-{uuid.uuid4().hex[:10]}",
+                "business_date": DS,
+                "cylinders": [{"cylinder_type_id": type_id, "qty": 50}],
+            },
         )
         # Owed 500 from before the range — must not show up.
         await http.post(

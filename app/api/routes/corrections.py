@@ -23,6 +23,7 @@ from app.schemas.corrections import (
     TransferEdit,
 )
 from app.services import corrections as service
+from app.services import stock as stock_service
 
 router = APIRouter(tags=["corrections"])
 
@@ -34,7 +35,11 @@ async def _run[T](call: Awaitable[T]) -> T:
         return await call
     except service.EntryNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="entry not found") from exc
-    except (service.EntryOwnedBySale, service.StockWouldGoNegative) as exc:
+    except (
+        service.EntryOwnedBySale,
+        service.StockWouldGoNegative,
+        stock_service.DuplicatePurchaseInvoice,
+    ) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except service.InvalidEntry as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
