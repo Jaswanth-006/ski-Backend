@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import Any
 
 from app.core.config import settings
 from app.db.models import Bank, BankAccount, Person, Transfer, Vendor
@@ -39,7 +40,7 @@ async def _cleanup() -> None:
     await engine.dispose()
 
 
-def _find(rows: list[dict[str, object]], row_id: str) -> dict[str, object]:
+def _find(rows: list[dict[str, Any]], row_id: str) -> dict[str, Any]:
     return next(r for r in rows if r["id"] == row_id)
 
 
