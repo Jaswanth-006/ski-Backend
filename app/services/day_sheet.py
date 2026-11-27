@@ -84,16 +84,18 @@ _CUSTOMERS_WITH_SALES = text(
     ORDER BY c.name
     """
 )
-# Active delivery staff, plus anyone deactivated who still has activity that day.
+# Only delivery staff with something on that day: a sale, a balance charge or an expense
+# (active or not) — the rest would be empty rows.
 _DRIVERS = text(
     """
     SELECT id, name FROM users
     WHERE role = 'delivery' AND (
-        is_active
-        OR id IN (SELECT delivery_id FROM sales
-                  WHERE business_date = :on_date AND status = 'approved')
+        id IN (SELECT delivery_id FROM sales
+               WHERE business_date = :on_date AND status = 'approved')
         OR id IN (SELECT delivery_id FROM delivery_balances
                   WHERE kind = 'charge' AND entry_date = :on_date)
+        OR id IN (SELECT delivery_id FROM expenses
+                  WHERE business_date = :on_date AND delivery_id IS NOT NULL)
     )
     ORDER BY name
     """

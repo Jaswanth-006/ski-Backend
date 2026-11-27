@@ -147,8 +147,9 @@ async def test_cancel_and_edit_reverse_everything(client: tuple[AsyncClient, See
 
         # Stock, day sheet and balance are back as if the sale never happened.
         assert await _stock(http, admin, type_id) == (50, 50, 0)
-        row = await _boy_row(http, admin, boy)
-        assert row["cylinders"] == 0 and float(row["cash"]) == 0 and float(row["balance"]) == 0
+        # The boy has nothing left that day, so he drops off the day sheet.
+        sheet = (await http.get(f"/v1/day-sheet/{DS}", headers=admin)).json()
+        assert not any(r["delivery_id"] == boy for r in sheet["rows"])
         assert await _owed(http, admin, boy) == 0
 
         # Cancelling twice is refused; an unknown sale is 404.
