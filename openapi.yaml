@@ -5726,20 +5726,47 @@ components:
         label:
           type: string
           title: Label
-        ac4:
+        condition:
+          type: string
+          enum:
+          - full
+          - empty
+          title: Condition
+        opening:
           type: integer
-          title: Ac4
-        erv:
+          title: Opening
+        received:
           type: integer
-          title: Erv
+          title: Received
+        issue:
+          type: integer
+          title: Issue
+        other:
+          type: integer
+          title: Other
+        closing:
+          type: integer
+          title: Closing
       type: object
       required:
       - cylinder_type_id
       - code
       - label
-      - ac4
-      - erv
+      - condition
+      - opening
+      - received
+      - issue
+      - other
+      - closing
       title: StockReportRow
+      description: 'One cylinder type, full or empty, over the range: closing = A
+        + B − C (+ other).
+
+
+        Full:  received = ac4 from the plant, issue = sold.
+
+        Empty: received = empties back from customers through sales, issue = erv to
+        the plant.'
     StockSummary:
       properties:
         opening:

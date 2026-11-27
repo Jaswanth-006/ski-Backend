@@ -20,17 +20,29 @@ from app.schemas.reports import (
 )
 from app.services.sales import SALE_CHARGE_NOTE
 
+# Per cylinder type and condition. Sales and their cancellations ('reversal') together are
+# the issue of full cylinders and the empties received; ac4 (and legacy intake) is the full
+# received; erv the empties issued; anything else (damaged / lost returns, adjustments) is other.
 _STOCK = text(
     """
-    SELECT ct.id AS cylinder_type_id, ct.code, ct.label,
-      COALESCE((SELECT SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'ac4' AND condition = 'full'
-                  AND business_date BETWEEN :start AND :end), 0) AS ac4,
-      COALESCE((SELECT -SUM(delta) FROM stock_ledger
-                WHERE cylinder_type_id = ct.id AND reason = 'erv' AND condition = 'empty'
-                  AND business_date BETWEEN :start AND :end), 0) AS erv
+    SELECT ct.id AS cylinder_type_id, ct.code, ct.label, c.condition,
+      COALESCE(SUM(sl.delta) FILTER (WHERE sl.business_date < :start), 0) AS opening,
+      COALESCE(SUM(sl.delta) FILTER (
+        WHERE sl.business_date BETWEEN :start AND :end AND (
+          (c.condition = 'full' AND sl.reason IN ('ac4', 'intake')) OR
+          (c.condition = 'empty' AND sl.reason IN ('sale', 'reversal')))), 0) AS received,
+      COALESCE(-SUM(sl.delta) FILTER (
+        WHERE sl.business_date BETWEEN :start AND :end AND (
+          (c.condition = 'full' AND sl.reason IN ('sale', 'reversal')) OR
+          (c.condition = 'empty' AND sl.reason = 'erv'))), 0) AS issue,
+      COALESCE(SUM(sl.delta) FILTER (WHERE sl.business_date <= :end), 0) AS closing
     FROM cylinder_types ct
-    ORDER BY ct.code
+    CROSS JOIN (VALUES ('full'), ('empty')) AS c(condition)
+    LEFT JOIN stock_ledger sl
+      ON sl.cylinder_type_id = ct.id AND sl.condition = c.condition
+    WHERE ct.is_active
+    GROUP BY ct.id, ct.code, ct.label, c.condition
+    ORDER BY ct.code, c.condition DESC
     """
 )
 
@@ -114,8 +126,13 @@ async def stock_report(db: AsyncSession, start: dt.date, end: dt.date) -> list[S
             cylinder_type_id=r["cylinder_type_id"],
             code=r["code"],
             label=r["label"],
-            ac4=int(r["ac4"]),
-            erv=int(r["erv"]),
+            condition=r["condition"],
+            opening=int(r["opening"]),
+            received=int(r["received"]),
+            issue=int(r["issue"]),
+            # Whatever moved stock besides A + B − C (damaged / lost, adjustments).
+            other=int(r["closing"]) - (int(r["opening"]) + int(r["received"]) - int(r["issue"])),
+            closing=int(r["closing"]),
         )
         for r in rows
     ]

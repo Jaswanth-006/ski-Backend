@@ -148,8 +148,32 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
             },
         )
 
-        stock = next(r for r in await _report(http, admin, "stock") if r["code"] == TYPE_CODE)
-        assert (stock["ac4"], stock["erv"]) == (500, 100)
+        # Stock: per cylinder, a full row and an empty row — A + B − C = closing.
+        rows = {
+            r["condition"]: r for r in await _report(http, admin, "stock") if r["code"] == TYPE_CODE
+        }
+        full, empty = rows["full"], rows["empty"]
+        # Full: received = ac4 500, issue = sold 300.
+        assert [full[k] for k in ("opening", "received", "issue", "other", "closing")] == [
+            0,
+            500,
+            300,
+            0,
+            200,
+        ]
+        # Empty: received = 300 back from the sale, issue = erv 100.
+        assert [empty[k] for k in ("opening", "received", "issue", "other", "closing")] == [
+            0,
+            300,
+            100,
+            0,
+            200,
+        ]
+        # The next day opens with what this day closed with.
+        nd = (D + dt.timedelta(days=1)).isoformat()
+        nxt = (await http.get(f"/v1/reports/stock?start={nd}&end={nd}", headers=admin)).json()
+        opening = {r["condition"]: r["opening"] for r in nxt if r["code"] == TYPE_CODE}
+        assert opening == {"full": 200, "empty": 200}
 
         deliv = next(
             r
