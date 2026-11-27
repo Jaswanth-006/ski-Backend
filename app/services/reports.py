@@ -9,12 +9,14 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import User
+from app.db.models import ExpenseItem, User
 from app.schemas.reports import (
     DeliveryLedgerOut,
     DeliveryLedgerRow,
     DeliveryReportRow,
     DepositReportRow,
+    ExpenseItemEntry,
+    ExpenseItemLedgerOut,
     ExpenseReportRow,
     StockReportRow,
 )
@@ -246,3 +248,43 @@ async def deposit_report(db: AsyncSession, start: dt.date, end: dt.date) -> list
         )
         for r in rows
     ]
+
+
+class ExpenseItemNotFound(Exception):
+    """No expense item with that id."""
+
+
+_EXPENSE_ENTRIES = text(
+    """
+    SELECT e.id, e.business_date, e.amount, e.method, e.note, e.created_at,
+           d.name AS delivery_name, s.invoice_no, u.name AS entered_by
+    FROM expenses e
+    LEFT JOIN users d ON d.id = e.delivery_id
+    LEFT JOIN sales s ON s.id = e.sale_id
+    LEFT JOIN users u ON u.id = e.created_by
+    WHERE e.item_id = :item AND e.business_date BETWEEN :start AND :end
+    ORDER BY e.business_date DESC, e.created_at DESC
+    """
+)
+
+
+async def expense_item_ledger(
+    db: AsyncSession, item_id: uuid.UUID, start: dt.date, end: dt.date
+) -> ExpenseItemLedgerOut:
+    """Every entry of one expense item in the range: day, who, how much."""
+    item = await db.get(ExpenseItem, item_id)
+    if item is None:
+        raise ExpenseItemNotFound()
+    params = {"item": item_id, "start": start, "end": end}
+    rows = [
+        ExpenseItemEntry(**r) for r in (await db.execute(_EXPENSE_ENTRIES, params)).mappings().all()
+    ]
+    return ExpenseItemLedgerOut(
+        item_id=item.id,
+        item_name=item.name,
+        start=start,
+        end=end,
+        rows=rows,
+        total=sum((r.amount for r in rows), Decimal(0)),
+        count=len(rows),
+    )

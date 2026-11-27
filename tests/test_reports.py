@@ -185,6 +185,19 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
 
         exp = next(r for r in await _report(http, admin, "expenses") if r["item_name"] == ITEM_NAME)
         assert float(exp["total"]) == 200 and exp["count"] == 1
+        # One item's entries: the day, who entered it, how much.
+        led = (
+            await http.get(f"/v1/reports/expenses/{item_id}?start={DS}&end={DS}", headers=admin)
+        ).json()
+        assert led["item_name"] == ITEM_NAME and led["count"] == 1
+        assert float(led["total"]) == 200
+        (entry,) = led["rows"]
+        assert entry["business_date"] == DS and float(entry["amount"]) == 200
+        assert entry["method"] == "cash" and entry["entered_by"]
+        missing = await http.get(
+            f"/v1/reports/expenses/{uuid.uuid4()}?start={DS}&end={DS}", headers=admin
+        )
+        assert missing.status_code == 404
 
         dep = next(
             r for r in await _report(http, admin, "deposits") if r["recipient"] == VENDOR_NAME
