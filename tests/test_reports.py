@@ -47,7 +47,9 @@ async def _cleanup() -> None:
     engine = create_async_engine(settings.database_url)
     sf = async_sessionmaker(engine, expire_on_commit=False)
     async with sf() as db:
-        await db.execute(delete(Transfer).where(Transfer.business_date == D))
+        await db.execute(
+            delete(Transfer).where(Transfer.business_date.in_([D, D - dt.timedelta(days=1)]))
+        )
         await db.execute(delete(StockLoad).where(StockLoad.business_date == D))
         await db.execute(delete(Expense).where(Expense.business_date == D))
         await db.execute(delete(ExpenseItem).where(ExpenseItem.name == ITEM_NAME))
@@ -199,10 +201,102 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
         )
         assert missing.status_code == 404
 
-        dep = next(
-            r for r in await _report(http, admin, "deposits") if r["recipient"] == VENDOR_NAME
+        # Deposits: a bank account with ₹5000 opening; a day earlier ₹700 came in from the box.
+        bank_id = (await http.post("/v1/banks", headers=admin, json={"name": VENDOR_NAME})).json()[
+            "id"
+        ]
+        acc = (
+            await http.post(
+                "/v1/bank-accounts",
+                headers=admin,
+                json={"bank_id": bank_id, "account_type": "current", "opening_balance": 5000},
+            )
+        ).json()["id"]
+        prev = (D - dt.timedelta(days=1)).isoformat()
+
+        async def move(day: str, amount: int, body: dict[str, Any]) -> None:
+            r = await http.post(
+                "/v1/transfers",
+                headers=admin,
+                json={"business_date": day, "amount": amount, "method": "transfer", **body},
+            )
+            assert r.status_code == 201, r.text
+
+        await move(
+            prev,
+            700,
+            {
+                "source_kind": "cashier_box",
+                "dest_kind": "bank_account",
+                "dest_bank_account_id": acc,
+            },
         )
-        assert float(dep["total"]) == 1000 and dep["kind"] == "vendor"
+        # In range: box → bank 2000, bank → vendor 500.
+        await move(
+            DS,
+            2000,
+            {
+                "source_kind": "cashier_box",
+                "dest_kind": "bank_account",
+                "dest_bank_account_id": acc,
+            },
+        )
+        await move(
+            DS,
+            500,
+            {
+                "source_kind": "bank_account",
+                "source_bank_account_id": acc,
+                "dest_kind": "vendor",
+                "dest_vendor_id": vendor_id,
+            },
+        )
+
+        places = await _report(http, admin, "deposits")
+        vend = next(r for r in places if r["kind"] == "vendor" and r["ref_id"] == vendor_id)
+        assert vend["name"] == VENDOR_NAME
+        assert (float(vend["money_in"]), float(vend["money_out"]), vend["count"]) == (1500, 0, 2)
+        bank = next(r for r in places if r["kind"] == "bank_account" and r["ref_id"] == acc)
+        assert bank["name"] == f"{VENDOR_NAME} · current"
+        assert (float(bank["money_in"]), float(bank["money_out"])) == (2000, 500)
+        assert any(r["kind"] == "cashier_box" and r["ref_id"] is None for r in places)
+
+        # The bank's statement: opening 5000 + 700 before, then each deposit with its balance.
+        led = (
+            await http.get(
+                f"/v1/reports/deposits/bank_account/{acc}?start={DS}&end={DS}", headers=admin
+            )
+        ).json()
+        assert float(led["opening"]) == 5700
+        assert [(r["direction"], float(r["amount"]), float(r["balance"])) for r in led["rows"]] == [
+            ("in", 2000, 7700),
+            ("out", 500, 7200),
+        ]
+        assert led["rows"][0]["from_label"] == "Cashier box"
+        assert led["rows"][1]["to_label"] == VENDOR_NAME
+        assert (float(led["total_in"]), float(led["total_out"]), float(led["closing"])) == (
+            2000,
+            500,
+            7200,
+        )
+        # Vendor statement: no balance, just what came in and from where.
+        vled = (
+            await http.get(
+                f"/v1/reports/deposits/vendor/{vendor_id}?start={DS}&end={DS}", headers=admin
+            )
+        ).json()
+        assert vled["opening"] is None and float(vled["total_in"]) == 1500
+        assert {r["from_label"] for r in vled["rows"]} == {
+            "Cashier box",
+            f"{VENDOR_NAME} · current",
+        }
+        box = await http.get(
+            f"/v1/reports/deposits/cashier_box/box?start={DS}&end={DS}", headers=admin
+        )
+        assert box.status_code == 200 and box.json()["name"] == "Cashier box"
+        for bad in (f"vendor/{uuid.uuid4()}", "vendor/nope"):
+            r = await http.get(f"/v1/reports/deposits/{bad}?start={DS}&end={DS}", headers=admin)
+            assert r.status_code == 404
     finally:
         await _cleanup()
 

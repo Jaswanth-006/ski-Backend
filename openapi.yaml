@@ -2843,6 +2843,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/deposits/{kind}/{ref}:
+    get:
+      tags:
+      - reports
+      summary: Deposit Ledger
+      description: 'Every deposit into / out of one place: the cashier box (``ref``
+        = "box"), a bank account,
+
+        a vendor or a person — when, how much, from where to where.'
+      operationId: deposit_ledger_v1_reports_deposits__kind___ref__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          enum:
+          - cashier_box
+          - bank_account
+          - vendor
+          - person
+          type: string
+          title: Kind
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepositLedgerOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -4312,27 +4369,162 @@ components:
       - note_value
       - note_count
       title: DenominationIn
+    DepositLedgerOut:
+      properties:
+        kind:
+          type: string
+          enum:
+          - cashier_box
+          - bank_account
+          - vendor
+          - person
+          title: Kind
+        ref_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Ref Id
+        name:
+          type: string
+          title: Name
+        start:
+          type: string
+          format: date
+          title: Start
+        end:
+          type: string
+          format: date
+          title: End
+        opening:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Opening
+        rows:
+          items:
+            $ref: '#/components/schemas/DepositLedgerRow'
+          type: array
+          title: Rows
+        total_in:
+          type: string
+          title: Total In
+        total_out:
+          type: string
+          title: Total Out
+        closing:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Closing
+      type: object
+      required:
+      - kind
+      - ref_id
+      - name
+      - start
+      - end
+      - opening
+      - rows
+      - total_in
+      - total_out
+      - closing
+      title: DepositLedgerOut
+      description: Every deposit into or out of one place over a date range.
+    DepositLedgerRow:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        from_label:
+          type: string
+          title: From Label
+        to_label:
+          type: string
+          title: To Label
+        direction:
+          type: string
+          enum:
+          - in
+          - out
+          title: Direction
+        amount:
+          type: string
+          title: Amount
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        balance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Balance
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - business_date
+      - from_label
+      - to_label
+      - direction
+      - amount
+      - method
+      - note
+      - balance
+      - created_at
+      title: DepositLedgerRow
     DepositReportRow:
       properties:
         kind:
           type: string
+          enum:
+          - cashier_box
+          - bank_account
+          - vendor
+          - person
           title: Kind
-        recipient:
+        ref_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Ref Id
+        name:
           type: string
-          title: Recipient
-        total:
+          title: Name
+        money_in:
           type: string
-          title: Total
+          title: Money In
+        money_out:
+          type: string
+          title: Money Out
         count:
           type: integer
           title: Count
       type: object
       required:
       - kind
-      - recipient
-      - total
+      - ref_id
+      - name
+      - money_in
+      - money_out
       - count
       title: DepositReportRow
+      description: 'One place money moved through in the range: cashier box, bank
+        account, vendor, person.'
     EodOut:
       properties:
         business_date:
