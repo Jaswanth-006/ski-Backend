@@ -71,7 +71,8 @@ class TransferOut(BaseModel):
     id: uuid.UUID
     business_date: dt.date
     amount: Decimal
-    source_kind: SourceKind
+    # "online" = customers paid the vendor online with a sale (recorded by the sale itself)
+    source_kind: Literal["cashier_box", "bank_account", "person", "online"]
     source_label: str  # "Cashier box", "SBI · Savings" or a person's name
     source_person_id: uuid.UUID | None = None
     dest_kind: DestKind
@@ -79,4 +80,5 @@ class TransferOut(BaseModel):
     dest_person_id: uuid.UUID | None = None
     method: str
     note: str | None
+    sale_id: uuid.UUID | None = None  # made by a sale — change it by editing that invoice
     created_at: dt.datetime

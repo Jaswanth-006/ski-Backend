@@ -56,6 +56,9 @@ class SaleCreate(BaseModel):
     balance_total: Decimal = Field(ge=0, default=Decimal(0))  # uncollected — the party owes it
     # Delivery sales only: spent on the route from this collection; settles part of the sale.
     expenses: list[SaleExpenseIn] = Field(default_factory=list)
+    # Where the money went — recorded as deposits with the sale:
+    upi_account_id: uuid.UUID | None = None  # UPI landed in this bank account (else the box)
+    online_vendor_id: uuid.UUID | None = None  # online was paid to this vendor (IOC)
 
     @field_validator("upi_total", "online_total", "balance_total")
     @classmethod
@@ -112,6 +115,8 @@ class SaleOut(BaseModel):
     expenses: list[SaleExpenseOut] = Field(default_factory=list)  # route expenses settled here
     expenses_total: Decimal = Decimal(0)
     denominations: list[DenominationIn] = Field(default_factory=list)  # cash notes counted
+    upi_account_id: uuid.UUID | None = None
+    online_vendor_id: uuid.UUID | None = None
     cancelled_at: dt.datetime | None = None
     cancel_reason: str | None = None
 

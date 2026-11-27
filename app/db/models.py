@@ -589,7 +589,7 @@ class Transfer(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_transfers_amount_pos"),
         CheckConstraint(
-            "source_kind IN ('cashier_box','bank_account','person')",
+            "source_kind IN ('cashier_box','bank_account','person','online')",
             name="ck_transfers_source_kind",
         ),
         CheckConstraint(
@@ -627,6 +627,10 @@ class Transfer(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Set when this is the payment recorded with an ac4 purchase (stock_ledger.entry_id).
     stock_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Set when a sale made it: its UPI into a bank account, its online payment to the vendor.
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales.id"), nullable=True
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

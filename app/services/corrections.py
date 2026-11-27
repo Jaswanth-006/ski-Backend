@@ -362,6 +362,8 @@ async def _load_transfer(db: AsyncSession, transfer_id: uuid.UUID) -> Transfer:
     row = await db.scalar(select(Transfer).where(Transfer.id == transfer_id).with_for_update())
     if row is None:
         raise EntryNotFound()
+    if row.sale_id is not None:
+        raise EntryOwnedBySale(await _invoice_of(db, row.sale_id))
     return row
 
 

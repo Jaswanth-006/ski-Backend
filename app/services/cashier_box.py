@@ -44,6 +44,11 @@ _DEPOSITS = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
     "WHERE source_kind = 'cashier_box' AND business_date <= :bound"
 )
+# A sale's UPI sent on to a bank account: out of the box, but never physical notes.
+_SALE_UPI_OUT = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM transfers "
+    "WHERE source_kind = 'cashier_box' AND sale_id IS NOT NULL AND business_date <= :bound"
+)
 # Money into the box: a debtor paying back, a creditor lending, cash drawn from a bank.
 _RECEIVED = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
@@ -67,6 +72,7 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
     collected = Decimal(await db.scalar(_COLLECTED, params) or 0)
     expenses = Decimal(await db.scalar(_EXPENSES, params) or 0)
     deposits = Decimal(await db.scalar(_DEPOSITS, params) or 0)
+    sale_upi_out = Decimal(await db.scalar(_SALE_UPI_OUT, params) or 0)
     cash_collected = Decimal(await db.scalar(_CASH_ONLY, params) or 0)
     cash_expenses = Decimal(await db.scalar(_CASH_EXPENSES, params) or 0)
     repaid = Decimal(await db.scalar(_REPAID, {**params, "method": None}) or 0)
@@ -86,7 +92,7 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
         + cash_repaid
         + cash_received
         - cash_expenses
-        - deposits,
+        - (deposits - sale_upi_out),
     }
 
 

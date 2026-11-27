@@ -5517,6 +5517,18 @@ components:
             $ref: '#/components/schemas/SaleExpenseIn'
           type: array
           title: Expenses
+        upi_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Upi Account Id
+        online_vendor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Online Vendor Id
       type: object
       required:
       - invoice_no
@@ -5723,6 +5735,18 @@ components:
             $ref: '#/components/schemas/DenominationIn'
           type: array
           title: Denominations
+        upi_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Upi Account Id
+        online_vendor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Online Vendor Id
         cancelled_at:
           anyOf:
           - type: string
@@ -6269,6 +6293,7 @@ components:
           - cashier_box
           - bank_account
           - person
+          - online
           title: Source Kind
         source_label:
           type: string
@@ -6304,6 +6329,12 @@ components:
           - type: string
           - type: 'null'
           title: Note
+        sale_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Sale Id
         created_at:
           type: string
           format: date-time

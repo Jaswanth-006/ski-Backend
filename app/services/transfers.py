@@ -49,6 +49,8 @@ async def _person_label(db: AsyncSession, person_id: uuid.UUID | None) -> str:
 async def _source_label(db: AsyncSession, t: Transfer) -> str:
     if t.source_kind == "cashier_box":
         return "Cashier box"
+    if t.source_kind == "online":
+        return "Customers (online)"
     if t.source_kind == "person":
         return await _person_label(db, t.source_person_id)
     assert t.source_bank_account_id is not None
@@ -83,6 +85,7 @@ async def _to_out(db: AsyncSession, t: Transfer) -> TransferOut:
         dest_person_id=t.dest_person_id,
         method=t.method,
         note=t.note,
+        sale_id=t.sale_id,
         created_at=t.created_at,
     )
 
