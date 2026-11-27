@@ -125,6 +125,7 @@ async def test_day_sheet_consolidates_and_closes(client: tuple[AsyncClient, Seed
             "UPI",
             "Cash",
             "Online",
+            "Route exp.",
             "Balance",
         ]
 

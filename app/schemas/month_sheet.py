@@ -17,6 +17,7 @@ class MonthSheetDay(BaseModel):
     upi: Decimal
     cash: Decimal
     online: Decimal  # paid direct to the company
+    route_expense: Decimal = Decimal(0)  # spent on the route out of the sales' collection
     balance: Decimal  # left unpaid that day (delivery boys + customers)
     is_closed: bool
 
@@ -29,6 +30,7 @@ class MonthSheetTotals(BaseModel):
     upi: Decimal
     cash: Decimal
     online: Decimal
+    route_expense: Decimal = Decimal(0)
     balance: Decimal
 
 

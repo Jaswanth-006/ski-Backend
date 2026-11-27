@@ -48,6 +48,12 @@ _BALANCE_BY_DAY = text(
     GROUP BY entry_date
     """
 )
+# Route expenses entered with sales (removed when the sale is cancelled).
+_ROUTE_BY_DAY = text(
+    "SELECT business_date AS d, SUM(amount) AS route FROM expenses "
+    "WHERE sale_id IS NOT NULL AND business_date BETWEEN :start AND :end "
+    "GROUP BY business_date"
+)
 _CLOSED = text(
     "SELECT business_date AS d FROM day_sheet_status "
     "WHERE is_closed = TRUE AND business_date BETWEEN :start AND :end"
@@ -64,6 +70,10 @@ async def month_sheet(db: AsyncSession, year: int, month: int) -> MonthSheetOut:
         r["d"]: Decimal(r["balance"])
         for r in (await db.execute(_BALANCE_BY_DAY, params)).mappings().all()
     }
+    route_by_day = {
+        r["d"]: Decimal(r["route"])
+        for r in (await db.execute(_ROUTE_BY_DAY, params)).mappings().all()
+    }
     closed = {r["d"] for r in (await db.execute(_CLOSED, params)).mappings().all()}
 
     days: list[MonthSheetDay] = []
@@ -79,6 +89,7 @@ async def month_sheet(db: AsyncSession, year: int, month: int) -> MonthSheetOut:
                 upi=Decimal(s["upi"]) if s else Decimal(0),
                 cash=Decimal(s["cash"]) if s else Decimal(0),
                 online=Decimal(s["online"]) if s else Decimal(0),
+                route_expense=route_by_day.get(d, Decimal(0)),
                 balance=balance_by_day.get(d, Decimal(0)),
                 is_closed=d in closed,
             )
@@ -92,6 +103,7 @@ async def month_sheet(db: AsyncSession, year: int, month: int) -> MonthSheetOut:
         upi=sum((x.upi for x in days), Decimal(0)),
         cash=sum((x.cash for x in days), Decimal(0)),
         online=sum((x.online for x in days), Decimal(0)),
+        route_expense=sum((x.route_expense for x in days), Decimal(0)),
         balance=sum((x.balance for x in days), Decimal(0)),
     )
     return MonthSheetOut(year=year, month=month, days=days, totals=totals)

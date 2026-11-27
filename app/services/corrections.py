@@ -251,6 +251,13 @@ async def edit_stock_entry(
     if invoice_no and invoice_no.lower() != (entry.invoice_no or "").lower():
         await stock.ensure_invoice_free(db, invoice_no, except_entry=entry.entry_id)
     await _replace_stock_entry(db, entry, data.business_date, data.lines, actor, invoice_no)
+    # The payment recorded with the purchase follows its date and invoice number.
+    for t in await db.scalars(select(Transfer).where(Transfer.stock_entry_id == entry_id)):
+        if t.business_date != data.business_date:
+            await _guard_dates(db, actor, t.business_date, data.business_date)
+            t.business_date = data.business_date
+        if invoice_no:
+            t.note = f"ac4 invoice {invoice_no}"
     await audit.write(
         db,
         actor.id,

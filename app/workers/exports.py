@@ -18,6 +18,7 @@ HEADERS = [
     "UPI",
     "Cash",
     "Online",
+    "Route exp.",
     "Balance",
 ]
 
@@ -50,6 +51,7 @@ def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
                 float(row.upi),
                 float(row.cash),
                 float(row.online),
+                float(row.route_expense),
                 float(row.balance),
             ]
         )
@@ -65,6 +67,7 @@ def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
             float(t.upi),
             float(t.cash),
             float(t.online),
+            float(t.route_expense),
             float(t.balance),
         ]
     )

@@ -177,6 +177,16 @@ async def test_audit_fixes(client: tuple[AsyncClient, SeededUsers]) -> None:
         # Collected 5000 + 3791; the fuel never reached the box, so box expenses don't move.
         assert float(after["collected"]) - float(before["collected"]) == 8791
         assert float(after["expenses"]) == float(before["expenses"])
+        # The day sheet shows the fuel as a route expense, so the row adds up:
+        # amount 9791 = cash 5000 + upi 3791 + route 1000; nothing comes off what he handed in.
+        sheet = (await http.get(f"/v1/day-sheet/{DS}", headers=admin)).json()
+        row = next(r for r in sheet["rows"] if r["delivery_id"] == boy)
+        assert float(row["route_expense"]) >= 1000
+        assert float(row["handed"]) == float(row["cash"]) + float(row["upi"])
+        assert float(sheet["totals"]["route_expense"]) >= 1000
+        month = (await http.get(f"/v1/month-sheet/{DAY.year}/{DAY.month}", headers=admin)).json()
+        day = next(d for d in month["days"] if d["business_date"] == DS)
+        assert float(day["route_expense"]) == float(sheet["totals"]["route_expense"])
         expenses = (await http.get(f"/v1/expenses?date={DS}", headers=admin)).json()
         assert any(float(e["amount"]) == 1000 for e in expenses)
 
