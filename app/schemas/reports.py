@@ -11,11 +11,21 @@ from pydantic import BaseModel
 
 
 class StockReportRow(BaseModel):
+    """One cylinder type, full or empty, over the range: closing = A + B − C (+ other).
+
+    Full:  received = ac4 from the plant, issue = sold.
+    Empty: received = empties back from customers through sales, issue = erv to the plant.
+    """
+
     cylinder_type_id: uuid.UUID
     code: str
     label: str
-    ac4: int  # full cylinders received from the plant
-    erv: int  # empty cylinders returned to the plant
+    condition: Literal["full", "empty"]
+    opening: int  # A: on hand before the start date
+    received: int  # B
+    issue: int  # C
+    other: int  # damaged / lost write-offs and adjustments (signed, usually ≤ 0)
+    closing: int  # A + B − C + other: on hand at the end date
 
 
 class DeliveryReportRow(BaseModel):
