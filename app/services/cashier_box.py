@@ -40,9 +40,11 @@ _REPAID = text(
     WHERE entry_date <= :bound AND (CAST(:method AS text) IS NULL OR method = :method)
     """
 )
+# Deposits out of the box that you recorded (sale-made ones are counted as UPI to bank).
 _DEPOSITS = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
-    "WHERE source_kind = 'cashier_box' AND business_date <= :bound"
+    "WHERE source_kind = 'cashier_box' AND sale_id IS NULL AND business_date <= :bound "
+    "AND (CAST(:method AS text) IS NULL OR method = :method)"
 )
 # A sale's UPI sent on to a bank account: out of the box, but never physical notes.
 _SALE_UPI_OUT = text(
@@ -71,7 +73,9 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
     params = {"bound": bound}
     collected = Decimal(await db.scalar(_COLLECTED, params) or 0)
     expenses = Decimal(await db.scalar(_EXPENSES, params) or 0)
-    deposits = Decimal(await db.scalar(_DEPOSITS, params) or 0)
+    deposits = Decimal(await db.scalar(_DEPOSITS, {**params, "method": None}) or 0)
+    # Only cash-method deposits take physical notes out of the box.
+    cash_deposits = Decimal(await db.scalar(_DEPOSITS, {**params, "method": "cash"}) or 0)
     sale_upi_out = Decimal(await db.scalar(_SALE_UPI_OUT, params) or 0)
     cash_collected = Decimal(await db.scalar(_CASH_ONLY, params) or 0)
     cash_expenses = Decimal(await db.scalar(_CASH_EXPENSES, params) or 0)
@@ -84,15 +88,16 @@ async def _cumulative(db: AsyncSession, bound: dt.date) -> dict[str, Decimal]:
         "repaid": repaid,
         "expenses": expenses,
         "deposits": deposits,
+        "upi_to_bank": sale_upi_out,
         "received": received,
-        "closing": collected + repaid + received - expenses - deposits,
+        "closing": collected + repaid + received - expenses - deposits - sale_upi_out,
         "cash_collected": cash_collected,
         "cash_repaid": cash_repaid,
         "hand_cash_closing": cash_collected
         + cash_repaid
         + cash_received
         - cash_expenses
-        - (deposits - sale_upi_out),
+        - cash_deposits,
     }
 
 
@@ -106,6 +111,7 @@ async def cashier_box(db: AsyncSession, on_date: dt.date) -> CashierBoxOut:
         repaid=cur["repaid"] - prev["repaid"],
         expenses=cur["expenses"] - prev["expenses"],
         deposited=cur["deposits"] - prev["deposits"],
+        upi_to_bank=cur["upi_to_bank"] - prev["upi_to_bank"],
         received=cur["received"] - prev["received"],
         closing=cur["closing"],
         hand_cash_opening=prev["hand_cash_closing"],

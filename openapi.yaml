@@ -3489,6 +3489,10 @@ components:
         deposited:
           type: string
           title: Deposited
+        upi_to_bank:
+          type: string
+          title: Upi To Bank
+          default: '0'
         received:
           type: string
           title: Received
@@ -3964,6 +3968,10 @@ components:
         handed:
           type: string
           title: Handed
+        route_expense:
+          type: string
+          title: Route Expense
+          default: '0'
         denominations:
           items:
             $ref: '#/components/schemas/Denomination'
@@ -4028,6 +4036,10 @@ components:
         handed:
           type: string
           title: Handed
+        route_expense:
+          type: string
+          title: Route Expense
+          default: '0'
       type: object
       required:
       - cylinders
@@ -5070,6 +5082,10 @@ components:
         online:
           type: string
           title: Online
+        route_expense:
+          type: string
+          title: Route Expense
+          default: '0'
         balance:
           type: string
           title: Balance
@@ -5134,6 +5150,10 @@ components:
         online:
           type: string
           title: Online
+        route_expense:
+          type: string
+          title: Route Expense
+          default: '0'
         balance:
           type: string
           title: Balance

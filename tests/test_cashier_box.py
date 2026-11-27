@@ -164,5 +164,23 @@ async def test_cashier_box_carries_over(client: tuple[AsyncClient, SeededUsers])
         assert d2["received"] == 300
         assert d2["closing"] == 2800
         assert d2["hand_cash_closing"] == 2800
+
+        # Giving the debtor 200 by UPI out of the box: the box drops, the notes don't.
+        r = await http.post(
+            "/v1/transfers",
+            headers=admin,
+            json={
+                "business_date": D2.isoformat(),
+                "amount": 200,
+                "source_kind": "cashier_box",
+                "dest_kind": "person",
+                "dest_person_id": debtor,
+                "method": "upi",
+            },
+        )
+        assert r.status_code == 201, r.text
+        d2 = await _box(http, admin, D2)
+        assert d2["closing"] == 2600
+        assert d2["hand_cash_closing"] == 2800
     finally:
         await _cleanup()

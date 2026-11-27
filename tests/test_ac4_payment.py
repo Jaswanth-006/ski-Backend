@@ -29,7 +29,9 @@ async def _cleanup() -> None:
     engine = create_async_engine(settings.database_url)
     sf = async_sessionmaker(engine, expire_on_commit=False)
     async with sf() as db:
-        await db.execute(delete(Transfer).where(Transfer.business_date == DAY))
+        await db.execute(
+            delete(Transfer).where(Transfer.business_date.in_([DAY, DAY + dt.timedelta(days=1)]))
+        )
         tids = (
             await db.scalars(select(CylinderType.id).where(CylinderType.code == TYPE_CODE))
         ).all()
@@ -92,6 +94,29 @@ async def test_ac4_records_the_vendor_payment(client: tuple[AsyncClient, SeededU
         assert float(v["paid"]) == 8500.5 and float(v["total_paid"]) == 9500.5
         deps = (await http.get(f"/v1/transfers?start={DS}&end={DS}", headers=admin)).json()
         assert [d["note"] for d in deps] == [f"ac4 invoice P-{tag}"]
+
+        # Editing the purchase's date and invoice moves its payment with it.
+        nd = (DAY + dt.timedelta(days=1)).isoformat()
+        line = {"cylinder_type_id": type_id, "condition": "full", "qty": 10}
+        r = await http.put(
+            f"/v1/stock/entries/{entry['entry_id']}",
+            headers=office,
+            json={
+                "reason": "wrong date",
+                "business_date": nd,
+                "invoice_no": f"P-{tag}-B",
+                "lines": [line],
+            },
+        )
+        assert r.status_code == 200, r.text
+        moved = (await http.get(f"/v1/transfers?start={nd}&end={nd}", headers=admin)).json()
+        assert [d["note"] for d in moved] == [f"ac4 invoice P-{tag}-B"]
+        r = await http.put(
+            f"/v1/stock/entries/{entry['entry_id']}",
+            headers=office,
+            json={"reason": "back", "business_date": DS, "lines": [line]},
+        )
+        assert r.status_code == 200, r.text
 
         # Without a payment the purchase is just stock.
         assert (await ac4(f"P-{tag}-2", None)).status_code == 201

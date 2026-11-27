@@ -57,8 +57,14 @@ _AGG_SQL = text(
 _EXP_SQL = text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date = :on_date")
 
 _EXP_BY_DRIVER_SQL = text(
-    "SELECT delivery_id, COALESCE(SUM(amount), 0) AS expense FROM expenses "
+    "SELECT delivery_id, COALESCE(SUM(amount), 0) AS expense, "
+    "COALESCE(SUM(amount) FILTER (WHERE sale_id IS NOT NULL), 0) AS route "
+    "FROM expenses "
     "WHERE business_date = :on_date AND delivery_id IS NOT NULL GROUP BY delivery_id"
+)
+_ROUTE_EXP_SQL = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+    "WHERE business_date = :on_date AND sale_id IS NOT NULL"
 )
 
 _DENOM_SQL = text(
@@ -120,10 +126,9 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
 
     loads = await stock_loads.loads_by_driver(db, on_date)
 
-    expense_by_driver: dict[uuid.UUID, Decimal] = {
-        row["delivery_id"]: Decimal(row["expense"])
-        for row in (await db.execute(_EXP_BY_DRIVER_SQL, {"on_date": on_date})).mappings().all()
-    }
+    exp_rows = (await db.execute(_EXP_BY_DRIVER_SQL, {"on_date": on_date})).mappings().all()
+    expense_by_driver = {r["delivery_id"]: Decimal(r["expense"]) for r in exp_rows}
+    route_by_driver = {r["delivery_id"]: Decimal(r["route"]) for r in exp_rows}
     balance_by_driver = await delivery_balances.charges_on(db, on_date)
 
     rows: list[DaySheetRow] = []
@@ -135,8 +140,10 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         upi = Decimal(a["upi"]) if a else Decimal(0)
         online = Decimal(a["online"]) if a else Decimal(0)
         expense = expense_by_driver.get(d["id"], Decimal(0))
+        route = route_by_driver.get(d["id"], Decimal(0))
         balance = balance_by_driver.get(d["id"], Decimal(0))
-        net = cash + upi - expense
+        # Route expenses were spent before handing in, so only the others come off.
+        net = cash + upi - (expense - route)
         notes = denom_by_driver.get(d["id"], {})
         loaded, returned = loads.get(d["id"], (0, 0))
         rows.append(
@@ -157,7 +164,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
                 expense=expense,
                 net=net,
                 balance=balance,
-                handed=net - balance,
+                handed=cash + upi,
+                route_expense=route,
                 denominations=[
                     Denomination(note_value=v, note_count=notes[v])
                     for v in sorted(notes, reverse=True)
@@ -223,8 +231,10 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         net=sum((r.net for r in rows), Decimal(0)),
         balance=sum((r.balance for r in rows), Decimal(0)),
         handed=sum((r.handed for r in rows), Decimal(0)),
+        route_expense=sum((r.route_expense for r in rows), Decimal(0)),
     )
     expenses_total = Decimal(await db.scalar(_EXP_SQL, {"on_date": on_date}) or 0)
+    route_total = Decimal(await db.scalar(_ROUTE_EXP_SQL, {"on_date": on_date}) or 0)
     cashier_opening, cashier_closing = await cashier_box.opening_closing(db, on_date)
     opening_stock, closing_stock = await stock_loads.warehouse_opening_closing(db, on_date)
     stock = StockSummary(
@@ -241,7 +251,7 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         rows=rows,
         totals=totals,
         expenses_total=expenses_total,
-        net=totals.total - expenses_total,
+        net=totals.total - (expenses_total - route_total),
         denomination_totals=denomination_totals,
         cashier_opening=cashier_opening,
         cashier_closing=cashier_closing,

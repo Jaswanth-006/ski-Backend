@@ -14,12 +14,14 @@ class CashierBoxOut(BaseModel):
     collected: Decimal  # cash + UPI collected on this date
     repaid: Decimal  # balance repayments received on this date (cash + UPI)
     expenses: Decimal  # expenses on this date
-    deposited: Decimal  # box-sourced deposits on this date
+    deposited: Decimal  # deposits out of the box recorded on this date
+    upi_to_bank: Decimal = Decimal(0)  # sales' UPI sent on to a bank account on this date
     # Money put into the box on this date (debtor paid back, creditor lent, bank withdrawal).
     received: Decimal = Decimal(0)
-    closing: Decimal  # opening + collected + repaid + received − expenses − deposited
+    # opening + collected + repaid + received − expenses − deposited − upi_to_bank
+    closing: Decimal
     # Physical hand cash only (excludes UPI): cash collected + cash repaid + cash received
-    # − cash expenses − deposits.
+    # − cash expenses − cash deposits.
     hand_cash_opening: Decimal
     hand_cash_collected: Decimal
     hand_cash_repaid: Decimal

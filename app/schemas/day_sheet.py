@@ -27,11 +27,14 @@ class DaySheetRow(BaseModel):
     cash: Decimal
     upi: Decimal
     online: Decimal  # paid direct to the company (not settled by the boy)
-    total: Decimal  # cash + upi collected
-    expense: Decimal  # this boy's route expenses for the day
-    net: Decimal  # due to office = total - expense
-    balance: Decimal  # of `net`, the part he didn't hand in today (added to what he owes)
-    handed: Decimal  # what he actually handed in = net - balance
+    total: Decimal  # cash + upi handed in
+    expense: Decimal  # all of this boy's expenses that day (route + recorded on Expenses)
+    net: Decimal  # total − his expenses paid from the box (route ones never reached it)
+    balance: Decimal  # left unpaid that day (added to what he owes)
+    handed: Decimal  # cash + upi he handed in (= total)
+    # Spent on the route out of the sale's collection: amount = cash + upi + online + balance
+    # + route_expense.
+    route_expense: Decimal = Decimal(0)
     denominations: list[Denomination]  # this driver's note breakdown, high value first
 
 
@@ -53,9 +56,10 @@ class DaySheetTotals(BaseModel):
     online: Decimal
     total: Decimal
     expense: Decimal  # sum of driver-attributed expenses
-    net: Decimal  # total - expense
+    net: Decimal  # sum of row nets
     balance: Decimal  # sum of balance charges recorded today
-    handed: Decimal  # net - balance
+    handed: Decimal  # sum of cash + upi handed in
+    route_expense: Decimal = Decimal(0)
 
 
 class DaySheetOut(BaseModel):
@@ -65,7 +69,7 @@ class DaySheetOut(BaseModel):
     rows: list[DaySheetRow]
     totals: DaySheetTotals
     expenses_total: Decimal
-    net: Decimal  # collection total − expenses
+    net: Decimal  # cash + upi collected − expenses paid from the box (not route ones)
     denomination_totals: list[Denomination]  # aggregated across all drivers, high value first
     cashier_opening: Decimal  # cashier box balance carried into this day
     cashier_closing: Decimal  # cashier box balance at end of this day
