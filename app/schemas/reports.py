@@ -78,6 +78,30 @@ class ExpenseReportRow(BaseModel):
     count: int
 
 
+class ExpenseItemEntry(BaseModel):
+    id: uuid.UUID
+    business_date: dt.date
+    amount: Decimal
+    method: str
+    note: str | None
+    delivery_name: str | None  # the delivery boy it was spent by / for, if any
+    invoice_no: str | None  # set when it was a route expense entered with a sale
+    entered_by: str | None  # who recorded it
+    created_at: dt.datetime
+
+
+class ExpenseItemLedgerOut(BaseModel):
+    """One expense item over a date range: every entry, newest day first."""
+
+    item_id: uuid.UUID
+    item_name: str
+    start: dt.date
+    end: dt.date
+    rows: list[ExpenseItemEntry]
+    total: Decimal
+    count: int
+
+
 class DepositReportRow(BaseModel):
     kind: str  # vendor | person | bank_account | cashier_box
     recipient: str

@@ -2759,6 +2759,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/expenses/{item_id}:
+    get:
+      tags:
+      - reports
+      summary: Expense Item Ledger
+      description: 'One expense item: each entry in the range with its day, who and
+        how much.'
+      operationId: expense_item_ledger_v1_reports_expenses__item_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseItemLedgerOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/reports/deposits:
     get:
       tags:
@@ -4468,6 +4513,97 @@ components:
       required:
       - name
       title: ExpenseItemCreate
+    ExpenseItemEntry:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        amount:
+          type: string
+          title: Amount
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        delivery_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Delivery Name
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
+        entered_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entered By
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - business_date
+      - amount
+      - method
+      - note
+      - delivery_name
+      - invoice_no
+      - entered_by
+      - created_at
+      title: ExpenseItemEntry
+    ExpenseItemLedgerOut:
+      properties:
+        item_id:
+          type: string
+          format: uuid
+          title: Item Id
+        item_name:
+          type: string
+          title: Item Name
+        start:
+          type: string
+          format: date
+          title: Start
+        end:
+          type: string
+          format: date
+          title: End
+        rows:
+          items:
+            $ref: '#/components/schemas/ExpenseItemEntry'
+          type: array
+          title: Rows
+        total:
+          type: string
+          title: Total
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - item_id
+      - item_name
+      - start
+      - end
+      - rows
+      - total
+      - count
+      title: ExpenseItemLedgerOut
+      description: 'One expense item over a date range: every entry, newest day first.'
     ExpenseItemOut:
       properties:
         id:

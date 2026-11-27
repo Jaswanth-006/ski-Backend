@@ -14,6 +14,7 @@ from app.schemas.reports import (
     DeliveryLedgerOut,
     DeliveryReportRow,
     DepositReportRow,
+    ExpenseItemLedgerOut,
     ExpenseReportRow,
     StockReportRow,
 )
@@ -66,6 +67,21 @@ async def expense_report(
     db: AsyncSession = Depends(get_replica_db),
 ) -> list[ExpenseReportRow]:
     return await reports_service.expense_report(db, start, end)
+
+
+@router.get("/reports/expenses/{item_id}", response_model=ExpenseItemLedgerOut)
+async def expense_item_ledger(
+    item_id: uuid.UUID,
+    start: dt.date,
+    end: dt.date,
+    _: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_replica_db),
+) -> ExpenseItemLedgerOut:
+    """One expense item: each entry in the range with its day, who and how much."""
+    try:
+        return await reports_service.expense_item_ledger(db, item_id, start, end)
+    except reports_service.ExpenseItemNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="expense item not found") from exc
 
 
 @router.get("/reports/deposits", response_model=list[DepositReportRow])
