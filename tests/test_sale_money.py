@@ -40,7 +40,9 @@ async def _cleanup() -> None:
     engine = create_async_engine(settings.database_url)
     sf = async_sessionmaker(engine, expire_on_commit=False)
     async with sf() as db:
-        await db.execute(delete(Transfer).where(Transfer.business_date == DAY))
+        await db.execute(
+            delete(Transfer).where(Transfer.business_date.in_([DAY, DAY - dt.timedelta(days=1)]))
+        )
         tids = (
             await db.scalars(select(CylinderType.id).where(CylinderType.code == TYPE_CODE))
         ).all()
@@ -116,6 +118,20 @@ async def test_sale_records_where_the_money_went(client: tuple[AsyncClient, Seed
             "upi_account_id": acc,
             "online_vendor_id": vendor,
         }
+        # Back-dated: the 20 cylinders arrived on DAY, so nothing could be sold the day before.
+        early = await http.post(
+            "/v1/sales",
+            headers={**office, "Idempotency-Key": str(uuid.uuid4())},
+            json={
+                **body,
+                "invoice_no": f"E-{tag}",
+                "business_date": (DAY - dt.timedelta(days=1)).isoformat(),
+                "upi_account_id": None,
+                "online_vendor_id": None,
+            },
+        )
+        assert early.status_code == 409 and "insufficient stock" in early.json()["detail"]
+
         bad = await http.post(
             "/v1/sales",
             headers={**office, "Idempotency-Key": str(uuid.uuid4())},
@@ -154,5 +170,59 @@ async def test_sale_records_where_the_money_went(client: tuple[AsyncClient, Seed
         box = (await http.get(f"/v1/cashier-box/{DS}", headers=admin)).json()
         assert float(box["closing"]) == float(box_before["closing"])
         assert float(box["hand_cash_closing"]) == float(box_before["hand_cash_closing"])
+
+        # A UPI repayment can go straight on to the bank account.
+        r = await http.post(
+            "/v1/delivery-balances",
+            headers=office,
+            json={
+                "delivery_id": str(users.delivery_id),
+                "amount": 400,
+                "entry_date": DS,
+                "kind": "repayment",
+                "method": "upi",
+                "upi_account_id": acc,
+            },
+        )
+        assert r.status_code == 201, r.text
+        rep_id = r.json()["id"]
+        assert await balances() == (1400, 0)
+        box = (await http.get(f"/v1/cashier-box/{DS}", headers=admin)).json()
+        assert float(box["closing"]) == float(box_before["closing"])  # in and on to the bank
+        assert float(box["hand_cash_closing"]) == float(box_before["hand_cash_closing"])
+        assert float(box["upi_to_bank"]) >= 400
+        # Its deposit follows the repayment and can't be changed on its own.
+        deps = (await http.get(f"/v1/transfers?start={DS}&end={DS}", headers=admin)).json()
+        (upi_dep,) = [d for d in deps if d["balance_entry_id"] == rep_id]
+        r = await http.post(
+            f"/v1/transfers/{upi_dep['id']}/delete", headers=office, json={"reason": "typo"}
+        )
+        assert r.status_code == 409 and "repayment" in r.json()["detail"]
+        r = await http.put(
+            f"/v1/delivery-balances/{rep_id}",
+            headers=office,
+            json={"reason": "typo", "entry_date": DS, "amount": 300, "method": "upi"},
+        )
+        assert r.status_code == 204, r.text
+        assert await balances() == (1300, 0)
+        r = await http.post(
+            f"/v1/delivery-balances/{rep_id}/delete", headers=office, json={"reason": "typo"}
+        )
+        assert r.status_code == 204, r.text
+        assert await balances() == (1000, 0)
+        # A bad bank account records nothing.
+        r = await http.post(
+            "/v1/delivery-balances",
+            headers=office,
+            json={
+                "delivery_id": str(users.delivery_id),
+                "amount": 50,
+                "entry_date": DS,
+                "kind": "repayment",
+                "method": "upi",
+                "upi_account_id": str(uuid.uuid4()),
+            },
+        )
+        assert r.status_code == 400
     finally:
         await _cleanup()

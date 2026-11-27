@@ -48,6 +48,15 @@ class EntryNotFound(Exception):
     pass
 
 
+class EntryOwnedByRepayment(Exception):
+    """The deposit was made by a UPI repayment; change the repayment instead."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "this is a UPI repayment sent to the bank; edit the repayment in the Balance tab"
+        )
+
+
 class EntryOwnedBySale(Exception):
     """The entry was created by a sale; edit that invoice instead."""
 
@@ -371,6 +380,8 @@ async def _load_transfer(db: AsyncSession, transfer_id: uuid.UUID) -> Transfer:
         raise EntryNotFound()
     if row.sale_id is not None:
         raise EntryOwnedBySale(await _invoice_of(db, row.sale_id))
+    if row.balance_entry_id is not None:
+        raise EntryOwnedByRepayment()
     return row
 
 
@@ -485,6 +496,13 @@ async def edit_balance_entry(
     row.amount = data.amount
     row.method = (data.method or row.method or "cash") if row.kind == "repayment" else None
     row.note = data.note
+    # Its UPI-to-bank deposit follows: same amount and date, gone if it's no longer UPI.
+    for t in await db.scalars(select(Transfer).where(Transfer.balance_entry_id == entry_id)):
+        if row.method != "upi":
+            await db.delete(t)
+        else:
+            t.amount = row.amount
+            t.business_date = row.entry_date
     await audit.write(
         db,
         actor.id,
@@ -504,6 +522,7 @@ async def delete_balance_entry(
     row = await _load_balance(db, party, entry_id)
     await _guard_dates(db, actor, row.entry_date)
     old = _balance_snapshot(row)
+    await db.execute(delete(Transfer).where(Transfer.balance_entry_id == entry_id))
     await db.delete(row)
     await audit.write(
         db,

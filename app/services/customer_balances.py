@@ -10,13 +10,13 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CustomerBalance
+from app.db.models import Customer, CustomerBalance
 from app.schemas.customer_balances import (
     CustomerBalanceCreate,
     CustomerBalanceEntryOut,
     CustomerBalanceSummaryOut,
 )
-from app.services import audit
+from app.services import audit, transfers
 
 
 class InvalidCustomer(Exception):
@@ -49,6 +49,20 @@ async def create_entry(
         created_by=created_by,
     )
     db.add(entry)
+    if data.upi_account_id is not None:
+        customer = await db.get(Customer, data.customer_id)
+        if customer is None:
+            raise InvalidCustomer(str(data.customer_id))
+        await db.flush()
+        await transfers.upi_to_bank(
+            db,
+            account_id=data.upi_account_id,
+            amount=data.amount,
+            on=data.entry_date,
+            note=f"UPI repayment · {customer.name}",
+            balance_entry_id=entry.id,
+            created_by=created_by,
+        )
     await audit.write(
         db,
         created_by,
@@ -60,6 +74,7 @@ async def create_entry(
             "entry_date": str(data.entry_date),
             "method": data.method,
             "note": data.note,
+            "upi_account_id": str(data.upi_account_id) if data.upi_account_id else None,
         },
     )
     try:

@@ -627,6 +627,8 @@ class Transfer(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Set when this is the payment recorded with an ac4 purchase (stock_ledger.entry_id).
     stock_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Set when a UPI repayment (delivery_balances / customer_balances row) was sent to a bank.
+    balance_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     # Set when a sale made it: its UPI into a bank account, its online payment to the vendor.
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sales.id"), nullable=True

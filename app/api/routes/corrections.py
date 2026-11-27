@@ -36,6 +36,7 @@ async def _run[T](call: Awaitable[T]) -> T:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="entry not found") from exc
     except (
         service.EntryOwnedBySale,
+        service.EntryOwnedByRepayment,
         service.StockWouldGoNegative,
         stock_service.DuplicatePurchaseInvoice,
     ) as exc:

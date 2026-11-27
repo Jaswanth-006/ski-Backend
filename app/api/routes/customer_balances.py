@@ -16,6 +16,7 @@ from app.schemas.customer_balances import (
 )
 from app.services import customer_balances as service
 from app.services import day_lock
+from app.services import transfers as transfers_service
 
 router = APIRouter(tags=["customer-balances"])
 
@@ -52,3 +53,5 @@ async def create_customer_balance_entry(
         return await service.create_entry(db, body, current_user.id)
     except service.InvalidCustomer as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid customer") from exc
+    except transfers_service.InvalidReference as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid bank account") from exc

@@ -17,6 +17,8 @@ class DeliveryBalanceCreate(BaseModel):
     kind: str  # 'charge' | 'repayment'
     note: str | None = Field(default=None, max_length=280)
     method: Literal["cash", "upi"] | None = None  # repayments only; defaults to cash
+    # A UPI repayment can go straight on to a bank account (else it stays in the cashier box).
+    upi_account_id: uuid.UUID | None = None
 
     @field_validator("kind")
     @classmethod
@@ -27,6 +29,8 @@ class DeliveryBalanceCreate(BaseModel):
 
     @model_validator(mode="after")
     def _method(self) -> DeliveryBalanceCreate:
+        if not (self.kind == "repayment" and self.method == "upi"):
+            self.upi_account_id = None
         # How money came in only matters for a repayment (it lands in the cashier box).
         self.method = (self.method or "cash") if self.kind == "repayment" else None
         return self

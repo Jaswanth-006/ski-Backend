@@ -12,7 +12,7 @@ import datetime as dt
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,6 +118,30 @@ class SaleNotFound(SaleError):
 
 class SaleNotCancellable(SaleError):
     """Only a posted (approved) sale can be cancelled or edited."""
+
+
+# Full cylinders that can leave on a date without any day going negative: what is on hand
+# at the end of that date, but no more than the lowest later closing (a back-dated sale also
+# lowers every day after it).
+_FULL_AVAILABLE = text(
+    """
+    WITH daily AS (
+        SELECT business_date AS d, SUM(delta) AS s FROM stock_ledger
+        WHERE cylinder_type_id = :cyl AND condition = 'full'
+        GROUP BY business_date
+    ), running AS (
+        SELECT d, SUM(s) OVER (ORDER BY d) AS c FROM daily
+    )
+    SELECT LEAST(
+        COALESCE((SELECT SUM(s) FROM daily WHERE d <= :d), 0),
+        COALESCE((SELECT MIN(c) FROM running WHERE d > :d), 2147483647)
+    )
+    """
+)
+
+
+async def _full_available(db: AsyncSession, cylinder_type_id: uuid.UUID, on: dt.date) -> int:
+    return int(await db.scalar(_FULL_AVAILABLE, {"cyl": cylinder_type_id, "d": on}) or 0)
 
 
 async def _is_closed(db: AsyncSession, business_date: dt.date) -> bool:
@@ -333,7 +357,14 @@ async def _post(
             .where(Inventory.cylinder_type_id == line.cylinder_type_id)
             .with_for_update()
         )
-        if inv is None or inv.quantity < line.qty:
+        # Today's stock, and the stock on the sale's own date (a back-dated sale must not
+        # sell cylinders that weren't there yet). Earlier lines of this sale are already in
+        # the ledger (autoflush), so the same cylinder twice adds up.
+        if (
+            inv is None
+            or inv.quantity < line.qty
+            or await _full_available(db, line.cylinder_type_id, data.business_date) < line.qty
+        ):
             ct = await db.get(CylinderType, line.cylinder_type_id)
             raise InsufficientStock(ct.code if ct else str(line.cylinder_type_id))
         inv.quantity -= line.qty
