@@ -275,6 +275,7 @@ _DEPOSIT_SIDES = """
     SELECT t.id, t.business_date, t.amount, t.created_at,
            t.source_kind, COALESCE(t.source_bank_account_id, t.source_person_id), 'out'
     FROM transfers t
+    WHERE t.source_kind <> 'online'
 """
 
 _PLACE_NAMES = """
@@ -313,6 +314,7 @@ _LEDGER = text(
     SELECT t.id, t.business_date, t.amount, t.method, t.note, t.created_at, s.direction,
       CASE t.source_kind
         WHEN 'cashier_box' THEN 'Cashier box'
+        WHEN 'online' THEN 'Customers (online)'
         WHEN 'person' THEN sp.name
         ELSE sb.name || ' · ' || sba.account_type || COALESCE(' (' || sba.label || ')', '')
       END AS from_label,

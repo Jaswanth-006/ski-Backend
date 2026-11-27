@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    BankAccount,
     CashDenomination,
     CashLedger,
     Customer,
@@ -30,7 +31,9 @@ from app.db.models import (
     Sale,
     SaleLine,
     StockLedger,
+    Transfer,
     User,
+    Vendor,
 )
 from app.schemas.sales import (
     DenominationIn,
@@ -235,6 +238,7 @@ async def _reverse(db: AsyncSession, sale: Sale, reason: str, actor: User) -> No
             )
 
     await db.execute(delete(Expense).where(Expense.sale_id == sale.id))
+    await db.execute(delete(Transfer).where(Transfer.sale_id == sale.id))
     await db.execute(delete(DeliveryBalance).where(DeliveryBalance.sale_id == sale.id))
     await db.execute(delete(CustomerBalance).where(CustomerBalance.sale_id == sale.id))
 
@@ -290,6 +294,10 @@ async def _post(
     for e in data.expenses:
         if await db.get(ExpenseItem, e.item_id) is None:
             raise InvalidParty("expense item not found")
+    if data.upi_account_id is not None and await db.get(BankAccount, data.upi_account_id) is None:
+        raise InvalidParty("bank account not found")
+    if data.online_vendor_id is not None and await db.get(Vendor, data.online_vendor_id) is None:
+        raise InvalidParty("vendor not found")
 
     sale = Sale(
         idempotency_key=idempotency_key,
@@ -406,6 +414,38 @@ async def _post(
     db.add(CashLedger(sale_id=sale.id, amount=data.upi_total, kind="upi"))
     if data.online_total:
         db.add(CashLedger(sale_id=sale.id, amount=data.online_total, kind="online"))
+
+    # Where the money went, as deposits tied to this sale (undone if it is cancelled / edited).
+    # UPI is counted into the cashier box with the sale, so moving it to the bank is box → bank.
+    if data.upi_total and data.upi_account_id is not None:
+        db.add(
+            Transfer(
+                business_date=data.business_date,
+                amount=data.upi_total,
+                source_kind="cashier_box",
+                dest_kind="bank_account",
+                dest_bank_account_id=data.upi_account_id,
+                method="upi",
+                note=f"UPI · invoice {data.invoice_no}",
+                sale_id=sale.id,
+                created_by=actor.id,
+            )
+        )
+    # Online never reaches the box: customers paid the vendor directly.
+    if data.online_total and data.online_vendor_id is not None:
+        db.add(
+            Transfer(
+                business_date=data.business_date,
+                amount=data.online_total,
+                source_kind="online",
+                dest_kind="vendor",
+                dest_vendor_id=data.online_vendor_id,
+                method="online",
+                note=f"Online · invoice {data.invoice_no}",
+                sale_id=sale.id,
+                created_by=actor.id,
+            )
+        )
     # The uncollected balance is money the delivery boy / customer owes → their balance ledger.
     if data.balance_total:
         note = f"{SALE_CHARGE_NOTE} · invoice {data.invoice_no}"
@@ -455,6 +495,8 @@ async def _post(
             "online": str(data.online_total),
             "balance": str(data.balance_total),
             "expenses": str(expenses_total),
+            "upi_account_id": str(data.upi_account_id) if data.upi_account_id else None,
+            "online_vendor_id": str(data.online_vendor_id) if data.online_vendor_id else None,
         },
     )
     return sale
@@ -540,6 +582,16 @@ async def _build_sale_out(db: AsyncSession, sale: Sale) -> SaleOut:
         ],
         expenses=expenses,
         expenses_total=sum((e.amount for e in expenses), Decimal(0)),
+        upi_account_id=await db.scalar(
+            select(Transfer.dest_bank_account_id).where(
+                Transfer.sale_id == sale.id, Transfer.dest_kind == "bank_account"
+            )
+        ),
+        online_vendor_id=await db.scalar(
+            select(Transfer.dest_vendor_id).where(
+                Transfer.sale_id == sale.id, Transfer.dest_kind == "vendor"
+            )
+        ),
         cancelled_at=sale.cancelled_at,
         cancel_reason=sale.cancel_reason,
     )
