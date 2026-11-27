@@ -103,6 +103,10 @@ async def test_day_sheet_consolidates_and_closes(client: tuple[AsyncClient, Seed
         assert sheet["is_closed"] is False
         row = next(r for r in sheet["rows"] if r["delivery_id"] == str(users.delivery_id))
         assert (row["cylinders"], row["empties"], row["damaged"]) == (3, 2, 1)
+        # Only delivery staff who did something that day are listed — no empty rows.
+        assert [r["delivery_id"] for r in sheet["rows"] if r["party_kind"] == "delivery"] == [
+            str(users.delivery_id)
+        ]
         assert float(row["amount"]) == 3000
         assert float(row["cash"]) == 2000 and float(row["upi"]) == 1000
         assert float(sheet["totals"]["total"]) == 3000
