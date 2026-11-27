@@ -102,8 +102,43 @@ class ExpenseItemLedgerOut(BaseModel):
     count: int
 
 
+PartyKind = Literal["cashier_box", "bank_account", "vendor", "person"]
+
+
 class DepositReportRow(BaseModel):
-    kind: str  # vendor | person | bank_account | cashier_box
-    recipient: str
-    total: Decimal
+    """One place money moved through in the range: cashier box, bank account, vendor, person."""
+
+    kind: PartyKind
+    ref_id: uuid.UUID | None  # None for the cashier box
+    name: str  # "Cashier box", "SBI · Current (Main)", vendor / person name
+    money_in: Decimal  # deposits into it (to it)
+    money_out: Decimal  # deposits out of it (from it)
     count: int
+
+
+class DepositLedgerRow(BaseModel):
+    id: uuid.UUID
+    business_date: dt.date
+    from_label: str
+    to_label: str
+    direction: Literal["in", "out"]  # seen from this place
+    amount: Decimal
+    method: str
+    note: str | None
+    balance: Decimal | None  # running balance — bank accounts only
+    created_at: dt.datetime
+
+
+class DepositLedgerOut(BaseModel):
+    """Every deposit into or out of one place over a date range."""
+
+    kind: PartyKind
+    ref_id: uuid.UUID | None
+    name: str
+    start: dt.date
+    end: dt.date
+    opening: Decimal | None  # bank accounts: balance before the start date
+    rows: list[DepositLedgerRow]
+    total_in: Decimal
+    total_out: Decimal
+    closing: Decimal | None  # bank accounts: opening + in − out

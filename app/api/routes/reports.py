@@ -13,9 +13,11 @@ from app.db.models import User
 from app.schemas.reports import (
     DeliveryLedgerOut,
     DeliveryReportRow,
+    DepositLedgerOut,
     DepositReportRow,
     ExpenseItemLedgerOut,
     ExpenseReportRow,
+    PartyKind,
     StockReportRow,
 )
 from app.services import reports as reports_service
@@ -92,3 +94,26 @@ async def deposit_report(
     db: AsyncSession = Depends(get_replica_db),
 ) -> list[DepositReportRow]:
     return await reports_service.deposit_report(db, start, end)
+
+
+@router.get("/reports/deposits/{kind}/{ref}", response_model=DepositLedgerOut)
+async def deposit_ledger(
+    kind: PartyKind,
+    ref: str,
+    start: dt.date,
+    end: dt.date,
+    _: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_replica_db),
+) -> DepositLedgerOut:
+    """Every deposit into / out of one place: the cashier box (``ref`` = "box"), a bank account,
+    a vendor or a person — when, how much, from where to where."""
+    ref_id: uuid.UUID | None = None
+    if kind != "cashier_box":
+        try:
+            ref_id = uuid.UUID(ref)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
+    try:
+        return await reports_service.deposit_ledger(db, kind, ref_id, start, end)
+    except reports_service.PlaceNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
