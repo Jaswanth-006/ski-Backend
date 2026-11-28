@@ -74,6 +74,17 @@ def build_day_sheet_xlsx(sheet: DaySheetOut) -> bytes:
     for cell in ws[ws.max_row]:
         cell.font = Font(bold=True)
 
+    if sheet.agency_expenses:
+        ws.append([])
+        ws.append(["Agency expenses", "Method", "Note", "Amount"])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+        for e in sheet.agency_expenses:
+            ws.append([e.item_name, e.method, e.note or "", float(e.amount)])
+        ws.append(["Total", "", "", float(sheet.agency_expense_total)])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
