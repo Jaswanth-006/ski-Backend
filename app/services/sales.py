@@ -52,12 +52,6 @@ class SaleError(Exception):
     """Base for the sale errors the API turns into 4xx responses."""
 
 
-class DuplicateInvoice(SaleError):
-    def __init__(self, invoice_no: str) -> None:
-        self.invoice_no = invoice_no
-        super().__init__(f"invoice number {invoice_no} is already used")
-
-
 class DayClosed(SaleError):
     """The business date's day sheet is already closed."""
 
@@ -166,7 +160,7 @@ async def create_and_post_sale(
     if await _is_closed(db, data.business_date):
         raise DayClosed()
     sale = await _post(db, data, idempotency_key, actor)
-    await _commit(db, data.invoice_no)
+    await _commit(db)
     return await _build_sale_out(db, sale)
 
 
@@ -203,7 +197,7 @@ async def replace_sale(
         old={"sale_id": str(old.id), "invoice_no": old.invoice_no},
         new={"sale_id": str(new.id), "invoice_no": new.invoice_no, "reason": reason},
     )
-    await _commit(db, data.invoice_no)
+    await _commit(db)
     return await _build_sale_out(db, new)
 
 
@@ -285,18 +279,14 @@ async def _reverse(db: AsyncSession, sale: Sale, reason: str, actor: User) -> No
         },
         new={"status": "cancelled", "reason": reason},
     )
-    # Flush now so the invoice number is free for a re-posted sale in the same transaction.
     await db.flush()
 
 
-async def _commit(db: AsyncSession, invoice_no: str) -> None:
+async def _commit(db: AsyncSession) -> None:
     try:
         await db.commit()
-    except IntegrityError as exc:
-        # Lost a race with another sale using the same invoice number.
+    except IntegrityError:
         await db.rollback()
-        if "uq_sales_invoice_no" in str(exc.orig):
-            raise DuplicateInvoice(invoice_no) from exc
         raise
 
 
@@ -304,11 +294,6 @@ async def _post(
     db: AsyncSession, data: SaleCreate, idempotency_key: uuid.UUID, actor: User
 ) -> Sale:
     """Build and post a sale (no commit). The caller has already checked the day is open."""
-    taken = await db.scalar(
-        select(Sale.id).where(Sale.invoice_no == data.invoice_no, Sale.status != "cancelled")
-    )
-    if taken is not None:
-        raise DuplicateInvoice(data.invoice_no)
     if data.delivery_id is not None:
         person = await db.get(User, data.delivery_id)
         if person is None or person.role != "delivery":

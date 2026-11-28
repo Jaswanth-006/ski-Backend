@@ -45,7 +45,7 @@ class DenominationIn(BaseModel):
 
 
 class SaleCreate(BaseModel):
-    invoice_no: str = Field(min_length=1, max_length=50)  # unique across sales
+    invoice_no: str = Field(min_length=1, max_length=50)  # may repeat
     delivery_id: uuid.UUID | None = None  # a delivery boy…
     customer_id: uuid.UUID | None = None  # …or a corporate customer (exactly one)
     business_date: dt.date

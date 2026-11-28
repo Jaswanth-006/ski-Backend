@@ -66,8 +66,6 @@ def _http_error(exc: sales_service.SaleError) -> HTTPException:
         return HTTPException(status.HTTP_404_NOT_FOUND, detail="sale not found")
     if isinstance(exc, sales_service.SaleNotCancellable):
         return HTTPException(status.HTTP_409_CONFLICT, detail="this sale is already cancelled")
-    if isinstance(exc, sales_service.DuplicateInvoice):
-        return HTTPException(status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, sales_service.DayClosed):
         return HTTPException(
             status.HTTP_409_CONFLICT,

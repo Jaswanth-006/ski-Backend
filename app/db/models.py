@@ -207,10 +207,9 @@ class Sale(Base):
         Index("idx_sales_date_delivery", "business_date", "delivery_id"),
         Index("idx_sales_status", "status", postgresql_where=text("status = 'pending'")),
         Index(
-            "uq_sales_invoice_no",
+            "idx_sales_invoice_no",
             "invoice_no",
-            unique=True,
-            postgresql_where=text("invoice_no IS NOT NULL AND status <> 'cancelled'"),
+            postgresql_where=text("invoice_no IS NOT NULL"),
         ),
     )
 
@@ -220,7 +219,7 @@ class Sale(Base):
     idempotency_key: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, unique=True
     )
-    # Unique when set; sales before migration 0017 have none.
+    # May repeat; sales before migration 0017 have none.
     invoice_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
