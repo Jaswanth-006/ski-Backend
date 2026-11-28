@@ -606,11 +606,11 @@ class Transfer(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_transfers_amount_pos"),
         CheckConstraint(
-            "source_kind IN ('cashier_box','bank_account','person','online')",
+            "source_kind IN ('cashier_box','bank_account','person','online','vendor')",
             name="ck_transfers_source_kind",
         ),
         CheckConstraint(
-            "dest_kind IN ('vendor','person','bank_account','cashier_box')",
+            "dest_kind IN ('vendor','person','bank_account','cashier_box','purchase')",
             name="ck_transfers_dest_kind",
         ),
         Index("idx_transfers_date", "business_date"),
@@ -627,6 +627,10 @@ class Transfer(Base):
     )
     source_person_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("people.id"), nullable=True
+    )
+    # source_kind 'vendor': an ac4 purchase paid out of the money already with this vendor.
+    source_vendor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=True
     )
     dest_kind: Mapped[str] = mapped_column(Text, nullable=False)
     dest_vendor_id: Mapped[uuid.UUID | None] = mapped_column(

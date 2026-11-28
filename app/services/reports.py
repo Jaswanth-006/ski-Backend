@@ -9,7 +9,7 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import BankAccount, ExpenseItem, User
+from app.db.models import BankAccount, ExpenseItem, User, Vendor
 from app.schemas.reports import (
     DeliveryLedgerOut,
     DeliveryLedgerRow,
@@ -271,9 +271,11 @@ _DEPOSIT_SIDES = """
            COALESCE(t.dest_vendor_id, t.dest_bank_account_id, t.dest_person_id) AS ref_id,
            'in' AS direction
     FROM transfers t
+    WHERE t.dest_kind <> 'purchase'
     UNION ALL
     SELECT t.id, t.business_date, t.amount, t.created_at,
-           t.source_kind, COALESCE(t.source_bank_account_id, t.source_person_id), 'out'
+           t.source_kind,
+           COALESCE(t.source_bank_account_id, t.source_person_id, t.source_vendor_id), 'out'
     FROM transfers t
     WHERE t.source_kind <> 'online'
 """
@@ -316,17 +318,20 @@ _LEDGER = text(
         WHEN 'cashier_box' THEN 'Cashier box'
         WHEN 'online' THEN 'Customers (online)'
         WHEN 'person' THEN sp.name
+        WHEN 'vendor' THEN sv.name
         ELSE sb.name || ' · ' || sba.account_type || COALESCE(' (' || sba.label || ')', '')
       END AS from_label,
       CASE t.dest_kind
         WHEN 'cashier_box' THEN 'Cashier box'
         WHEN 'vendor' THEN dv.name
         WHEN 'person' THEN COALESCE(dp.name, t.dest_person_name)
+        WHEN 'purchase' THEN 'Purchase (ac4)'
         ELSE db.name || ' · ' || dba.account_type || COALESCE(' (' || dba.label || ')', '')
       END AS to_label
     FROM ({_DEPOSIT_SIDES}) s
     JOIN transfers t ON t.id = s.id
     LEFT JOIN people sp ON sp.id = t.source_person_id
+    LEFT JOIN vendors sv ON sv.id = t.source_vendor_id
     LEFT JOIN bank_accounts sba ON sba.id = t.source_bank_account_id
     LEFT JOIN banks sb ON sb.id = sba.bank_id
     LEFT JOIN vendors dv ON dv.id = t.dest_vendor_id
@@ -346,6 +351,17 @@ _NET_BEFORE = text(
     FROM transfers
     WHERE business_date < :start
       AND (dest_bank_account_id = :ref OR source_bank_account_id = :ref)
+    """
+)
+
+# Vendor balance before the range: deposits to it − purchases taken from it.
+_VENDOR_NET_BEFORE = text(
+    """
+    SELECT COALESCE(SUM(CASE WHEN dest_vendor_id = :ref THEN amount ELSE -amount END), 0)
+    FROM transfers
+    WHERE business_date < :start
+      AND ((dest_kind = 'vendor' AND dest_vendor_id = :ref)
+           OR (source_kind = 'vendor' AND source_vendor_id = :ref))
     """
 )
 
@@ -380,8 +396,9 @@ async def deposit_report(db: AsyncSession, start: dt.date, end: dt.date) -> list
 async def deposit_ledger(
     db: AsyncSession, kind: str, ref_id: uuid.UUID | None, start: dt.date, end: dt.date
 ) -> DepositLedgerOut:
-    """Every deposit into / out of one place, oldest first. Bank accounts also get the balance
-    before ``start`` (opening balance + earlier deposits) and a running balance."""
+    """Every deposit into / out of one place, oldest first. Bank accounts and vendors also get
+    the balance before ``start`` (opening balance + earlier moves) and a running balance — a
+    vendor's ac4 purchases are its money out."""
     if kind == "cashier_box":
         ref_id = None
     elif ref_id is None:
@@ -398,6 +415,12 @@ async def deposit_ledger(
             raise PlaceNotFound()
         net = await db.scalar(_NET_BEFORE, {"ref": ref_id, "start": start})
         opening = acc.opening_balance + Decimal(net or 0)
+    elif kind == "vendor":
+        vendor = await db.get(Vendor, ref_id)
+        if vendor is None:
+            raise PlaceNotFound()
+        net = await db.scalar(_VENDOR_NET_BEFORE, {"ref": ref_id, "start": start})
+        opening = vendor.opening_balance + Decimal(net or 0)
 
     params = {"kind": kind, "ref": ref, "start": start, "end": end}
     rows: list[DepositLedgerRow] = []

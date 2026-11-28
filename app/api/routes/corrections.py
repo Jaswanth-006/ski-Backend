@@ -22,7 +22,6 @@ from app.schemas.corrections import (
     TransferEdit,
 )
 from app.services import corrections as service
-from app.services import stock as stock_service
 
 router = APIRouter(tags=["corrections"])
 
@@ -37,8 +36,8 @@ async def _run[T](call: Awaitable[T]) -> T:
     except (
         service.EntryOwnedBySale,
         service.EntryOwnedByRepayment,
+        service.EntryOwnedByPurchase,
         service.StockWouldGoNegative,
-        stock_service.DuplicatePurchaseInvoice,
     ) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except service.InvalidEntry as exc:

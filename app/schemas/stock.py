@@ -22,37 +22,26 @@ class Ac4AccessoryLine(BaseModel):
     qty: int = Field(ge=1)
 
 
-class Ac4Payment(BaseModel):
-    """Money paid to the vendor for this purchase, recorded as a deposit with it."""
+class Ac4Purchase(BaseModel):
+    """What this delivery cost, taken out of the money already deposited with the vendor."""
 
     amount: Decimal = Field(gt=0)
     vendor_id: uuid.UUID
-    source_kind: Literal["cashier_box", "bank_account"] = "cashier_box"
-    source_bank_account_id: uuid.UUID | None = None
-    method: str = Field(default="cash", min_length=1, max_length=40)
 
     @field_validator("amount")
     @classmethod
     def _paise(cls, v: Decimal) -> Decimal:
         return to_paise(v)
 
-    @model_validator(mode="after")
-    def _check_source(self) -> Ac4Payment:
-        if self.source_kind == "bank_account" and self.source_bank_account_id is None:
-            raise ValueError("source_bank_account_id required when paying from a bank account")
-        if self.source_kind == "cashier_box":
-            self.source_bank_account_id = None
-        return self
-
 
 class Ac4Request(BaseModel):
     """Stock received from the plant: full cylinders and/or accessories added to stock."""
 
-    invoice_no: str = Field(min_length=1, max_length=50)  # the IOC invoice for this delivery
+    invoice_no: str = Field(min_length=1, max_length=50)  # the IOC invoice (may repeat)
     business_date: dt.date | None = None  # defaults to today
     cylinders: list[Ac4CylinderLine] = Field(default_factory=list)
     accessories: list[Ac4AccessoryLine] = Field(default_factory=list)
-    payment: Ac4Payment | None = None  # paid to the vendor now (box or bank → vendor)
+    purchase: Ac4Purchase | None = None  # cost, taken from the vendor's balance
 
     @field_validator("invoice_no")
     @classmethod

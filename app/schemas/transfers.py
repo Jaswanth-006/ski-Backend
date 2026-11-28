@@ -71,15 +71,17 @@ class TransferOut(BaseModel):
     id: uuid.UUID
     business_date: dt.date
     amount: Decimal
-    # "online" = customers paid the vendor online with a sale (recorded by the sale itself)
-    source_kind: Literal["cashier_box", "bank_account", "person", "online"]
-    source_label: str  # "Cashier box", "SBI · Savings" or a person's name
+    # "online" = customers paid the vendor online with a sale (recorded by the sale itself);
+    # "vendor" → "purchase" = an ac4 purchase taken from the vendor's balance
+    source_kind: Literal["cashier_box", "bank_account", "person", "online", "vendor"]
+    source_label: str  # "Cashier box", "SBI · Savings", a person's or vendor's name
     source_person_id: uuid.UUID | None = None
-    dest_kind: DestKind
-    dest_label: str  # vendor / person name, "HDFC · Current" or "Cashier box"
+    dest_kind: Literal["vendor", "person", "bank_account", "cashier_box", "purchase"]
+    dest_label: str  # vendor / person name, "HDFC · Current", "Cashier box" or "Purchase"
     dest_person_id: uuid.UUID | None = None
     method: str
     note: str | None
     sale_id: uuid.UUID | None = None  # made by a sale — change it by editing that invoice
     balance_entry_id: uuid.UUID | None = None  # made by a UPI repayment — edit that instead
+    stock_entry_id: uuid.UUID | None = None  # made by an ac4 purchase — edit that instead
     created_at: dt.datetime

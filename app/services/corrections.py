@@ -28,6 +28,7 @@ from app.db.models import (
     StockLedger,
     Transfer,
     User,
+    Vendor,
 )
 from app.schemas.corrections import (
     BalanceEntryEdit,
@@ -55,6 +56,13 @@ class EntryOwnedByRepayment(Exception):
         super().__init__(
             "this is a UPI repayment sent to the bank; edit the repayment in the Balance tab"
         )
+
+
+class EntryOwnedByPurchase(Exception):
+    """The deposit is an ac4 purchase's cost; change the purchase instead."""
+
+    def __init__(self) -> None:
+        super().__init__("this is the cost of an ac4 purchase; edit the purchase instead")
 
 
 class EntryOwnedBySale(Exception):
@@ -145,7 +153,7 @@ async def list_stock_entries(db: AsyncSession, on_date: dt.date) -> list[StockEn
     paid = await transfers.payments_for_entries(db, [e.entry_id for e in entries])
     for e in entries:
         if e.entry_id in paid:
-            e.payment_amount, e.payment_label = paid[e.entry_id]
+            e.payment_amount, e.payment_label, e.purchase_vendor_id = paid[e.entry_id]
     return entries
 
 
@@ -247,16 +255,17 @@ async def edit_stock_entry(
     await _guard_dates(db, actor, entry.business_date, data.business_date)
     _check_lines(entry.kind, data.lines)
     invoice_no = data.invoice_no if entry.kind == "ac4" else None
-    if invoice_no and invoice_no.lower() != (entry.invoice_no or "").lower():
-        await stock.ensure_invoice_free(db, invoice_no, except_entry=entry.entry_id)
     await _replace_stock_entry(db, entry, data.business_date, data.lines, actor, invoice_no)
-    # The payment recorded with the purchase follows its date and invoice number.
-    for t in await db.scalars(select(Transfer).where(Transfer.stock_entry_id == entry_id)):
+    # The cost (or older payment) recorded with the purchase follows its date and invoice.
+    linked = list(await db.scalars(select(Transfer).where(Transfer.stock_entry_id == entry_id)))
+    for t in linked:
         if t.business_date != data.business_date:
             await _guard_dates(db, actor, t.business_date, data.business_date)
             t.business_date = data.business_date
         if invoice_no:
             t.note = f"ac4 invoice {invoice_no}"
+    if entry.kind == "ac4" and data.purchase_amount is not None:
+        await _set_purchase_cost(db, entry, linked, data, actor, invoice_no or entry.invoice_no)
     await audit.write(
         db,
         actor.id,
@@ -268,6 +277,37 @@ async def edit_stock_entry(
     )
     await db.commit()
     return await _get_stock_entry(db, entry_id)
+
+
+async def _set_purchase_cost(
+    db: AsyncSession,
+    entry: StockEntryOut,
+    linked: list[Transfer],
+    data: StockEntryEdit,
+    actor: User,
+    invoice_no: str | None,
+) -> None:
+    """Change what an ac4 purchase took from the vendor's balance (0 removes it)."""
+    amount = data.purchase_amount
+    assert amount is not None
+    costs = [t for t in linked if t.dest_kind == "purchase"]
+    vendor_id = data.purchase_vendor_id or (costs[0].source_vendor_id if costs else None)
+    if amount > 0 and (vendor_id is None or await db.get(Vendor, vendor_id) is None):
+        raise InvalidEntry("pick the vendor whose balance pays for this purchase")
+    for t in costs[1:] if amount > 0 else costs:
+        await db.delete(t)
+    if amount == 0:
+        return
+    if costs:
+        costs[0].amount = amount
+        costs[0].source_vendor_id = vendor_id
+    else:
+        assert vendor_id is not None
+        db.add(
+            stock.purchase_transfer(
+                data.business_date, amount, vendor_id, invoice_no, entry.entry_id, actor.id
+            )
+        )
 
 
 async def delete_stock_entry(
@@ -372,6 +412,8 @@ async def _load_transfer(db: AsyncSession, transfer_id: uuid.UUID) -> Transfer:
         raise EntryOwnedBySale(await _invoice_of(db, row.sale_id))
     if row.balance_entry_id is not None:
         raise EntryOwnedByRepayment()
+    if row.dest_kind == "purchase":
+        raise EntryOwnedByPurchase()
     return row
 
 

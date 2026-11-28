@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -17,11 +18,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import business_today
-from app.db.models import BankAccount, Inventory, StockLedger, Transfer, Vendor
+from app.db.models import Inventory, StockLedger, Transfer, Vendor
 from app.schemas.stock import (
     Ac4AccessoryLine,
     Ac4CylinderLine,
-    Ac4Payment,
+    Ac4Purchase,
     AccessoryStockRow,
     CylinderStockRow,
     ErvLine,
@@ -31,28 +32,30 @@ from app.schemas.stock import (
 from app.services import audit
 
 
-class DuplicatePurchaseInvoice(Exception):
-    def __init__(self, invoice_no: str) -> None:
-        super().__init__(f"invoice {invoice_no} is already recorded")
-
-
-_INVOICE_TAKEN = text(
-    "SELECT 1 FROM stock_ledger WHERE reason = 'ac4' AND lower(invoice_no) = lower(:inv) "
-    "AND (CAST(:entry AS uuid) IS NULL OR entry_id <> CAST(:entry AS uuid)) LIMIT 1"
-)
-
-
-async def ensure_invoice_free(
-    db: AsyncSession, invoice_no: str, except_entry: uuid.UUID | None = None
-) -> None:
-    """One IOC invoice is one ac4 entry (case doesn't matter)."""
-    params = {"inv": invoice_no, "entry": str(except_entry) if except_entry else None}
-    if await db.scalar(_INVOICE_TAKEN, params):
-        raise DuplicatePurchaseInvoice(invoice_no)
-
-
 class InvalidReference(Exception):
     """A referenced cylinder type or accessory does not exist."""
+
+
+def purchase_transfer(
+    business_date: dt.date,
+    amount: Decimal,
+    vendor_id: uuid.UUID,
+    invoice_no: str | None,
+    entry_id: uuid.UUID,
+    created_by: uuid.UUID,
+) -> Transfer:
+    """An ac4 purchase's cost, taken out of the vendor's balance."""
+    return Transfer(
+        business_date=business_date,
+        amount=amount,
+        source_kind="vendor",
+        source_vendor_id=vendor_id,
+        dest_kind="purchase",
+        method="balance",
+        note=f"ac4 invoice {invoice_no or '—'}",
+        stock_entry_id=entry_id,
+        created_by=created_by,
+    )
 
 
 class InsufficientStock(Exception):
@@ -129,23 +132,17 @@ async def record_ac4(
     created_by: uuid.UUID,
     invoice_no: str,
     business_date: dt.date | None = None,
-    payment: Ac4Payment | None = None,
+    purchase: Ac4Purchase | None = None,
 ) -> None:
     """Stock received from the plant: full cylinders and/or accessories added to stock.
 
-    With ``payment`` the money paid to the vendor is recorded in the same transaction as a
-    deposit (cashier box or bank account → vendor) linked to this entry.
+    With ``purchase`` its cost is taken from the money already deposited with the vendor
+    (a transfer vendor → purchase, linked to this entry). The balance may go below zero —
+    the page warns first. The same invoice number may be used on more than one entry.
     """
     bd = business_date or business_today()
-    await ensure_invoice_free(db, invoice_no)
-    if payment is not None:
-        if await db.get(Vendor, payment.vendor_id) is None:
-            raise InvalidReference("invalid vendor")
-        if (
-            payment.source_bank_account_id is not None
-            and await db.get(BankAccount, payment.source_bank_account_id) is None
-        ):
-            raise InvalidReference("invalid bank account")
+    if purchase is not None and await db.get(Vendor, purchase.vendor_id) is None:
+        raise InvalidReference("invalid vendor")
     entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
     try:
         for line in cylinders:
@@ -185,19 +182,10 @@ async def record_ac4(
                     created_by=created_by,
                 )
             )
-        if payment is not None:
+        if purchase is not None:
             db.add(
-                Transfer(
-                    business_date=bd,
-                    amount=payment.amount,
-                    source_kind=payment.source_kind,
-                    source_bank_account_id=payment.source_bank_account_id,
-                    dest_kind="vendor",
-                    dest_vendor_id=payment.vendor_id,
-                    method=payment.method,
-                    note=f"ac4 invoice {invoice_no}",
-                    stock_entry_id=entry_id,
-                    created_by=created_by,
+                purchase_transfer(
+                    bd, purchase.amount, purchase.vendor_id, invoice_no, entry_id, created_by
                 )
             )
         await audit.write(
@@ -208,7 +196,7 @@ async def record_ac4(
             str(bd),
             new={
                 "invoice_no": invoice_no,
-                "payment": payment.model_dump(mode="json") if payment else None,
+                "purchase": purchase.model_dump(mode="json") if purchase else None,
                 "cylinders": [
                     {"cylinder_type_id": str(x.cylinder_type_id), "qty": x.qty} for x in cylinders
                 ],
