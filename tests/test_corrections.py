@@ -90,7 +90,7 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
         (ac4,) = await _entries(http, admin, "ac4")
         assert ac4["invoice_no"] == f"IOC-{tag}"
 
-        # Every ac4 needs an IOC invoice, and one invoice is recorded once (any case).
+        # Every ac4 needs an IOC invoice, and the same invoice may be used again.
         lines50 = [{"cylinder_type_id": type_id, "qty": 5}]
         no_inv = await http.post(
             "/v1/stock/ac4", headers=office, json={"business_date": DS, "cylinders": lines50}
@@ -101,7 +101,14 @@ async def test_corrections(client: tuple[AsyncClient, SeededUsers]) -> None:
             headers=office,
             json={"invoice_no": f"ioc-{tag}", "business_date": DS, "cylinders": lines50},
         )
-        assert dup.status_code == 409 and "already recorded" in dup.json()["detail"]
+        assert dup.status_code == 201, dup.text  # an invoice number may repeat
+        (again,) = [
+            e for e in await _entries(http, admin, "ac4") if e["entry_id"] != ac4["entry_id"]
+        ]
+        r = await http.post(
+            f"/v1/stock/entries/{again['entry_id']}/delete", headers=office, json=WHY
+        )
+        assert r.status_code == 204, r.text
         assert len(await _entries(http, admin, "ac4")) == 1
         line = {"cylinder_type_id": type_id, "condition": "full", "qty": 40}
         edited = await http.put(

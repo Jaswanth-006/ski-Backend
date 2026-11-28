@@ -3,7 +3,7 @@
 Soft-delete only (deactivating hides a bank/account/vendor/person from pickers while keeping
 history intact). Balances are each one's opening balance plus the deposits recorded since:
 - bank account: opening + money in − money out;
-- vendor: opening (paid before the app) + paid through deposits;
+- vendor: opening (paid before the app) + paid through deposits − taken by ac4 purchases;
 - debtor (owes us): opening + given − received; creditor (we owe): opening + received − given.
 """
 
@@ -31,7 +31,12 @@ from app.schemas.banking import (
     VendorOut,
     VendorUpdate,
 )
-from app.services.transfers import bank_account_balances, person_flows, vendor_paid
+from app.services.transfers import (
+    bank_account_balances,
+    person_flows,
+    vendor_paid,
+    vendor_used,
+)
 
 
 class NameAlreadyExists(Exception):
@@ -162,8 +167,11 @@ async def update_bank_account(
 
 
 # ---- Vendors ----
-def _vendor_out(v: Vendor, paid: dict[uuid.UUID, Decimal]) -> VendorOut:
+def _vendor_out(
+    v: Vendor, paid: dict[uuid.UUID, Decimal], used: dict[uuid.UUID, Decimal]
+) -> VendorOut:
     in_app = paid.get(v.id, Decimal(0))
+    spent = used.get(v.id, Decimal(0))
     return VendorOut(
         id=v.id,
         name=v.name,
@@ -171,13 +179,15 @@ def _vendor_out(v: Vendor, paid: dict[uuid.UUID, Decimal]) -> VendorOut:
         opening_balance=v.opening_balance,
         paid=in_app,
         total_paid=v.opening_balance + in_app,
+        used=spent,
+        balance=v.opening_balance + in_app - spent,
     )
 
 
 async def list_vendors(db: AsyncSession, active: str = "true") -> list[VendorOut]:
     stmt = select(Vendor).where(_active_clause(Vendor, active)).order_by(Vendor.name)
-    paid = await vendor_paid(db)
-    return [_vendor_out(v, paid) for v in await db.scalars(stmt)]
+    paid, used = await vendor_paid(db), await vendor_used(db)
+    return [_vendor_out(v, paid, used) for v in await db.scalars(stmt)]
 
 
 async def create_vendor(db: AsyncSession, data: VendorCreate) -> VendorOut:
@@ -189,7 +199,7 @@ async def create_vendor(db: AsyncSession, data: VendorCreate) -> VendorOut:
         await db.rollback()
         raise NameAlreadyExists(data.name) from exc
     await db.refresh(row)
-    return _vendor_out(row, {})
+    return _vendor_out(row, {}, {})
 
 
 async def update_vendor(
@@ -210,7 +220,7 @@ async def update_vendor(
         await db.rollback()
         raise NameAlreadyExists(data.name or "") from exc
     await db.refresh(row)
-    return _vendor_out(row, await vendor_paid(db))
+    return _vendor_out(row, await vendor_paid(db), await vendor_used(db))
 
 
 # ---- People (debtors / creditors) ----

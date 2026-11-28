@@ -925,14 +925,29 @@ paths:
       tags:
       - stock
       summary: Stock Ac4
-      description: ac4 — stock received from the plant (full cylinders + accessories).
+      description: 'ac4 — stock received from the plant (full cylinders + accessories);
+        its cost, if
+
+        given, is taken from the vendor''s balance.'
       operationId: stock_ac4_v1_stock_ac4_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/Ac4Request'
-        required: true
       responses:
         '201':
           description: Successful Response
@@ -946,8 +961,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - HTTPBearer: []
   /v1/stock/erv:
     post:
       tags:
@@ -3110,7 +3123,7 @@ components:
       - cylinder_type_id
       - qty
       title: Ac4CylinderLine
-    Ac4Payment:
+    Ac4Purchase:
       properties:
         amount:
           anyOf:
@@ -3122,32 +3135,13 @@ components:
           type: string
           format: uuid
           title: Vendor Id
-        source_kind:
-          type: string
-          enum:
-          - cashier_box
-          - bank_account
-          title: Source Kind
-          default: cashier_box
-        source_bank_account_id:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: Source Bank Account Id
-        method:
-          type: string
-          maxLength: 40
-          minLength: 1
-          title: Method
-          default: cash
       type: object
       required:
       - amount
       - vendor_id
-      title: Ac4Payment
-      description: Money paid to the vendor for this purchase, recorded as a deposit
-        with it.
+      title: Ac4Purchase
+      description: What this delivery cost, taken out of the money already deposited
+        with the vendor.
     Ac4Request:
       properties:
         invoice_no:
@@ -3171,9 +3165,9 @@ components:
             $ref: '#/components/schemas/Ac4AccessoryLine'
           type: array
           title: Accessories
-        payment:
+        purchase:
           anyOf:
-          - $ref: '#/components/schemas/Ac4Payment'
+          - $ref: '#/components/schemas/Ac4Purchase'
           - type: 'null'
       type: object
       required:
@@ -5929,6 +5923,19 @@ components:
           type: array
           minItems: 1
           title: Lines
+        purchase_amount:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+          - type: 'null'
+          title: Purchase Amount
+        purchase_vendor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Purchase Vendor Id
       type: object
       required:
       - reason
@@ -6049,6 +6056,12 @@ components:
           - type: string
           - type: 'null'
           title: Payment Label
+        purchase_vendor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Purchase Vendor Id
         created_at:
           type: string
           format: date-time
@@ -6422,6 +6435,7 @@ components:
           - bank_account
           - person
           - online
+          - vendor
           title: Source Kind
         source_label:
           type: string
@@ -6439,6 +6453,7 @@ components:
           - person
           - bank_account
           - cashier_box
+          - purchase
           title: Dest Kind
         dest_label:
           type: string
@@ -6469,6 +6484,12 @@ components:
             format: uuid
           - type: 'null'
           title: Balance Entry Id
+        stock_entry_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Stock Entry Id
         created_at:
           type: string
           format: date-time
@@ -6632,6 +6653,12 @@ components:
         total_paid:
           type: string
           title: Total Paid
+        used:
+          type: string
+          title: Used
+        balance:
+          type: string
+          title: Balance
       type: object
       required:
       - id
@@ -6640,6 +6667,8 @@ components:
       - opening_balance
       - paid
       - total_paid
+      - used
+      - balance
       title: VendorOut
     VendorUpdate:
       properties:

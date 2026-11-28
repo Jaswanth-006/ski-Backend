@@ -57,9 +57,10 @@ class StockEntryOut(BaseModel):
     business_date: dt.date
     invoice_no: str | None  # ac4: the IOC invoice
     lines: list[StockEntryLineOut]
-    # ac4: what was paid to the vendor with this purchase, e.g. "Cashier box → IOC".
+    # ac4: what the purchase cost and where it came from, e.g. "IOC → Purchase".
     payment_amount: Decimal | None = None
     payment_label: str | None = None
+    purchase_vendor_id: uuid.UUID | None = None  # the vendor whose balance paid for it
     created_at: dt.datetime
     created_by_name: str | None
 
@@ -68,6 +69,15 @@ class StockEntryEdit(Reason):
     business_date: dt.date
     invoice_no: str | None = Field(default=None, max_length=50)  # ac4 only; blank keeps it
     lines: list[StockEntryLine] = Field(min_length=1)
+    # ac4 only: None keeps the cost, 0 removes it, more sets it (taken from the vendor's
+    # balance; a purchase recorded without a cost also needs purchase_vendor_id).
+    purchase_amount: Decimal | None = Field(default=None, ge=0)
+    purchase_vendor_id: uuid.UUID | None = None
+
+    @field_validator("purchase_amount")
+    @classmethod
+    def _paise(cls, v: Decimal | None) -> Decimal | None:
+        return None if v is None else to_paise(v)
 
     @field_validator("invoice_no")
     @classmethod

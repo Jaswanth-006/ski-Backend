@@ -125,7 +125,7 @@ class DepositLedgerRow(BaseModel):
     amount: Decimal
     method: str
     note: str | None
-    balance: Decimal | None  # running balance — bank accounts only
+    balance: Decimal | None  # running balance — bank accounts and vendors
     created_at: dt.datetime
 
 
@@ -137,8 +137,8 @@ class DepositLedgerOut(BaseModel):
     name: str
     start: dt.date
     end: dt.date
-    opening: Decimal | None  # bank accounts: balance before the start date
+    opening: Decimal | None  # bank accounts / vendors: balance before the start date
     rows: list[DepositLedgerRow]
     total_in: Decimal
     total_out: Decimal
-    closing: Decimal | None  # bank accounts: opening + in − out
+    closing: Decimal | None  # bank accounts / vendors: opening + in − out

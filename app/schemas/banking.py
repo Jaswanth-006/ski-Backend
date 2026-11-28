@@ -79,6 +79,8 @@ class VendorOut(BaseModel):
     opening_balance: Decimal  # paid before the app
     paid: Decimal  # paid through deposits in the app
     total_paid: Decimal  # opening + paid
+    used: Decimal  # taken by ac4 purchases
+    balance: Decimal  # total_paid − used (below zero: purchases not yet covered)
 
 
 class PersonCreate(BaseModel):

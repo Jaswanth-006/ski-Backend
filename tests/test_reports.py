@@ -279,13 +279,14 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
             500,
             7200,
         )
-        # Vendor statement: no balance, just what came in and from where.
+        # Vendor statement: what came in and from where, with its balance.
         vled = (
             await http.get(
                 f"/v1/reports/deposits/vendor/{vendor_id}?start={DS}&end={DS}", headers=admin
             )
         ).json()
-        assert vled["opening"] is None and float(vled["total_in"]) == 1500
+        assert float(vled["opening"]) == 0 and float(vled["total_in"]) == 1500
+        assert float(vled["closing"]) == 1500
         assert {r["from_label"] for r in vled["rows"]} == {
             "Cashier box",
             f"{VENDOR_NAME} · current",

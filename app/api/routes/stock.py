@@ -36,26 +36,34 @@ async def stock_overview(
 @router.post("/stock/ac4", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
 async def stock_ac4(
     body: Ac4Request,
+    idempotency_key: uuid.UUID | None = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
-    """ac4 — stock received from the plant (full cylinders + accessories)."""
-    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+    """ac4 — stock received from the plant (full cylinders + accessories); its cost, if
+    given, is taken from the vendor's balance."""
+
+    async def save() -> StockOverview:
+        await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+        try:
+            await stock_service.record_ac4(
+                db,
+                cylinders=body.cylinders,
+                accessories=body.accessories,
+                created_by=current_user.id,
+                invoice_no=body.invoice_no,
+                business_date=body.business_date,
+                purchase=body.purchase,
+            )
+        except stock_service.InvalidReference as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        return await stock_service.overview(db, body.business_date or business_today())
+
     try:
-        await stock_service.record_ac4(
-            db,
-            cylinders=body.cylinders,
-            accessories=body.accessories,
-            created_by=current_user.id,
-            invoice_no=body.invoice_no,
-            business_date=body.business_date,
-            payment=body.payment,
-        )
-    except stock_service.DuplicatePurchaseInvoice as exc:
+        result: StockOverview = await idempotency.run_once(db, idempotency_key, "ac4", save)
+    except idempotency.KeyConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except stock_service.InvalidReference as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or business_today())
+    return result
 
 
 @router.post("/stock/erv", response_model=StockOverview, status_code=status.HTTP_201_CREATED)

@@ -1,7 +1,8 @@
 """Deposit / transfer service.
 
 Records money moving from a source (cashier box, bank account or person) to a destination
-(vendor, person, bank account or cashier box). Bank-account, vendor and person balances are
+(vendor, person, bank account or cashier box). An ac4 purchase is a transfer out of the
+vendor's balance (vendor → purchase). Bank-account, vendor and person balances are
 derived from these rows plus each one's opening balance; the cashier box
 (services/cashier_box.py) subtracts box-sourced transfers and adds transfers into it.
 Insufficient balance is allowed (accounting, not real banking) — the UI simply warns.
@@ -53,6 +54,9 @@ async def _source_label(db: AsyncSession, t: Transfer) -> str:
         return "Customers (online)"
     if t.source_kind == "person":
         return await _person_label(db, t.source_person_id)
+    if t.source_kind == "vendor":
+        name = await db.scalar(select(Vendor.name).where(Vendor.id == t.source_vendor_id))
+        return name or "—"
     assert t.source_bank_account_id is not None
     return await _account_label(db, t.source_bank_account_id)
 
@@ -67,6 +71,8 @@ async def _dest_label(db: AsyncSession, t: Transfer) -> str:
         return await _account_label(db, t.dest_bank_account_id)
     if t.dest_kind == "cashier_box":
         return "Cashier box"
+    if t.dest_kind == "purchase":
+        return "Purchase"
     if t.dest_person_id is not None:
         return await _person_label(db, t.dest_person_id)
     return t.dest_person_name or "—"
@@ -87,6 +93,7 @@ async def _to_out(db: AsyncSession, t: Transfer) -> TransferOut:
         note=t.note,
         sale_id=t.sale_id,
         balance_entry_id=t.balance_entry_id,
+        stock_entry_id=t.stock_entry_id,
         created_at=t.created_at,
     )
 
@@ -169,17 +176,19 @@ async def upi_to_bank(
 
 async def payments_for_entries(
     db: AsyncSession, entry_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, tuple[Decimal, str]]:
-    """Payments recorded with ac4 entries: entry id → (total amount, "source → vendor")."""
+) -> dict[uuid.UUID, tuple[Decimal, str, uuid.UUID | None]]:
+    """Money recorded with ac4 entries: entry id → (total, "IOC → Purchase", vendor id).
+    Older entries carry a payment instead ("Cashier box → IOC")."""
     if not entry_ids:
         return {}
     rows = await db.scalars(select(Transfer).where(Transfer.stock_entry_id.in_(entry_ids)))
-    out: dict[uuid.UUID, tuple[Decimal, str]] = {}
+    out: dict[uuid.UUID, tuple[Decimal, str, uuid.UUID | None]] = {}
     for t in rows:
         assert t.stock_entry_id is not None
         label = f"{await _source_label(db, t)} → {await _dest_label(db, t)}"
         prev = out.get(t.stock_entry_id)
-        out[t.stock_entry_id] = (t.amount + (prev[0] if prev else Decimal(0)), label)
+        total = t.amount + (prev[0] if prev else Decimal(0))
+        out[t.stock_entry_id] = (total, label, t.source_vendor_id)
     return out
 
 
@@ -223,6 +232,16 @@ async def vendor_paid(db: AsyncSession) -> dict[uuid.UUID, Decimal]:
         select(Transfer.dest_vendor_id, func.sum(Transfer.amount))
         .where(Transfer.dest_kind == "vendor")
         .group_by(Transfer.dest_vendor_id)
+    )
+    return {vid: Decimal(total) for vid, total in rows if vid is not None}
+
+
+async def vendor_used(db: AsyncSession) -> dict[uuid.UUID, Decimal]:
+    """Per-vendor total taken by ac4 purchases."""
+    rows = await db.execute(
+        select(Transfer.source_vendor_id, func.sum(Transfer.amount))
+        .where(Transfer.source_kind == "vendor")
+        .group_by(Transfer.source_vendor_id)
     )
     return {vid: Decimal(total) for vid, total in rows if vid is not None}
 
