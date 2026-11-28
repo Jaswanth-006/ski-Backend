@@ -920,6 +920,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/stock/opening:
+    get:
+      tags:
+      - stock
+      summary: Get Opening Stock
+      description: Opening stock per item (full / empty cylinders, accessories) and
+        its date.
+      operationId: get_opening_stock_v1_stock_opening_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpeningStockOut'
+      security:
+      - HTTPBearer: []
+    put:
+      tags:
+      - stock
+      summary: Set Opening Stock
+      description: 'Owner: set the stock on hand at the start of ``as_of`` (replaces
+        the saved one).'
+      operationId: set_opening_stock_v1_stock_opening_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpeningStockSet'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpeningStockOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /v1/stock/ac4:
     post:
       tags:
@@ -5385,6 +5430,118 @@ components:
       - online
       - balance
       title: MonthSheetTotals
+    OpeningStockLine:
+      properties:
+        cylinder_type_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cylinder Type Id
+        accessory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Accessory Id
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - empty
+          - type: 'null'
+          title: Condition
+        qty:
+          type: integer
+          minimum: 0.0
+          title: Qty
+      type: object
+      required:
+      - qty
+      title: OpeningStockLine
+      description: 'One item: a cylinder type (full or empty) or an accessory.'
+    OpeningStockOut:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+        rows:
+          items:
+            $ref: '#/components/schemas/OpeningStockRow'
+          type: array
+          title: Rows
+      type: object
+      required:
+      - as_of
+      - rows
+      title: OpeningStockOut
+    OpeningStockRow:
+      properties:
+        cylinder_type_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cylinder Type Id
+        accessory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Accessory Id
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - empty
+          - type: 'null'
+          title: Condition
+        label:
+          type: string
+          title: Label
+        qty:
+          type: integer
+          title: Qty
+      type: object
+      required:
+      - cylinder_type_id
+      - accessory_id
+      - condition
+      - label
+      - qty
+      title: OpeningStockRow
+    OpeningStockSet:
+      properties:
+        as_of:
+          type: string
+          format: date
+          title: As Of
+        lines:
+          items:
+            $ref: '#/components/schemas/OpeningStockLine'
+          type: array
+          title: Lines
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 280
+          - type: 'null'
+          title: Reason
+      type: object
+      required:
+      - as_of
+      - lines
+      title: OpeningStockSet
+      description: 'The whole opening stock as on ``as_of`` (stock at the start of
+        that day).
+
+
+        Replaces any opening stock saved before; items left out (or 0) have none.'
     PersonCreate:
       properties:
         name:

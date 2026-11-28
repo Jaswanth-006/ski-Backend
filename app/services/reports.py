@@ -31,10 +31,13 @@ from app.services.sales import SALE_CHARGE_NOTE
 # Per cylinder type and condition. Sales and their cancellations ('reversal') together are
 # the issue of full cylinders and the empties received; ac4 (and legacy intake) is the full
 # received; erv the empties issued; anything else (damaged / lost returns, adjustments) is other.
+# Opening stock (Master Catalog) always counts in A, even when its date is inside the range.
 _STOCK = text(
     """
     SELECT ct.id AS cylinder_type_id, ct.code, ct.label, c.condition,
-      COALESCE(SUM(sl.delta) FILTER (WHERE sl.business_date < :start), 0) AS opening,
+      COALESCE(SUM(sl.delta) FILTER (
+        WHERE sl.business_date < :start
+           OR (sl.reason = 'opening' AND sl.business_date <= :end)), 0) AS opening,
       COALESCE(SUM(sl.delta) FILTER (
         WHERE sl.business_date BETWEEN :start AND :end AND (
           (c.condition = 'full' AND sl.reason IN ('ac4', 'intake')) OR

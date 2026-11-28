@@ -13,10 +13,12 @@ from app.api.deps import get_db, require_roles
 from app.core.clock import business_today
 from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
+from app.schemas.opening_stock import OpeningStockOut, OpeningStockSet
 from app.schemas.stock import Ac4Request, ErvRequest, ReturnRequest, StockOverview
 from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
 from app.services import day_lock, idempotency
 from app.services import inventory as inventory_service
+from app.services import opening_stock as opening_service
 from app.services import stock as stock_service
 from app.services import stock_loads as stock_loads_service
 
@@ -31,6 +33,34 @@ async def stock_overview(
 ) -> StockOverview:
     """Per-day full/empty cylinder + accessory opening, movement, and closing."""
     return await stock_service.overview(db, date or business_today())
+
+
+@router.get("/stock/opening", response_model=OpeningStockOut)
+async def get_opening_stock(
+    _: User = Depends(require_roles("super_admin", "office_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> OpeningStockOut:
+    """Opening stock per item (full / empty cylinders, accessories) and its date."""
+    return await opening_service.get_opening(db)
+
+
+@router.put("/stock/opening", response_model=OpeningStockOut)
+async def set_opening_stock(
+    body: OpeningStockSet,
+    current_user: User = Depends(require_roles("super_admin")),
+    db: AsyncSession = Depends(get_db),
+) -> OpeningStockOut:
+    """Owner: set the stock on hand at the start of ``as_of`` (replaces the saved one)."""
+    try:
+        return await opening_service.set_opening(
+            db, body.as_of, body.lines, current_user, body.reason
+        )
+    except opening_service.InvalidItem as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except opening_service.OpeningWouldGoNegative as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.post("/stock/ac4", response_model=StockOverview, status_code=status.HTTP_201_CREATED)

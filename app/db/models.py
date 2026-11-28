@@ -148,7 +148,7 @@ class StockLedger(Base):
     __tablename__ = "stock_ledger"
     __table_args__ = (
         CheckConstraint(
-            "reason IN ('intake','ac4','erv','return','sale','reversal','adjust')",
+            "reason IN ('intake','ac4','erv','return','sale','reversal','adjust','opening')",
             name="ck_stock_ledger_reason",
         ),
         CheckConstraint(
