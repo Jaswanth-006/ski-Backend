@@ -34,16 +34,39 @@ def _kinds(source: str, dest: str) -> None:
     )
 
 
+def _refs(with_purchase: bool) -> None:
+    """Each kind carries its own id (and only that one)."""
+    source = (
+        "(source_kind = 'bank_account') = (source_bank_account_id IS NOT NULL)"
+        " AND (source_kind = 'person') = (source_person_id IS NOT NULL)"
+    )
+    dest = (
+        "(dest_kind = 'vendor' AND dest_vendor_id IS NOT NULL)"
+        " OR (dest_kind = 'bank_account' AND dest_bank_account_id IS NOT NULL)"
+        " OR (dest_kind = 'person' AND dest_person_id IS NOT NULL)"
+        " OR (dest_kind = 'cashier_box')"
+    )
+    if with_purchase:
+        source += " AND (source_kind = 'vendor') = (source_vendor_id IS NOT NULL)"
+        dest += " OR (dest_kind = 'purchase')"
+    op.execute("ALTER TABLE transfers DROP CONSTRAINT IF EXISTS ck_transfers_source")
+    op.execute(f"ALTER TABLE transfers ADD CONSTRAINT ck_transfers_source CHECK ({source})")
+    op.execute("ALTER TABLE transfers DROP CONSTRAINT IF EXISTS ck_transfers_dest")
+    op.execute(f"ALTER TABLE transfers ADD CONSTRAINT ck_transfers_dest CHECK ({dest})")
+
+
 def upgrade() -> None:
     op.execute("ALTER TABLE transfers ADD COLUMN source_vendor_id UUID REFERENCES vendors(id)")
     _kinds(
         "'cashier_box', 'bank_account', 'person', 'online', 'vendor'",
         "'vendor', 'person', 'bank_account', 'cashier_box', 'purchase'",
     )
+    _refs(with_purchase=True)
 
 
 def downgrade() -> None:
     op.execute("DELETE FROM transfers WHERE source_kind = 'vendor' OR dest_kind = 'purchase'")
+    _refs(with_purchase=False)
     _kinds(
         "'cashier_box', 'bank_account', 'person', 'online'",
         "'vendor', 'person', 'bank_account', 'cashier_box'",
