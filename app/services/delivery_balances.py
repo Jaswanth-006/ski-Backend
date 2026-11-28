@@ -15,7 +15,7 @@ from app.schemas.delivery_balances import (
     DeliveryBalanceEntryOut,
     DeliveryBalanceSummaryOut,
 )
-from app.services import audit
+from app.services import audit, transfers
 
 
 def _entry_out(b: DeliveryBalance) -> DeliveryBalanceEntryOut:
@@ -51,6 +51,17 @@ async def create_entry(
         created_by=created_by,
     )
     db.add(entry)
+    if data.upi_account_id is not None:
+        await db.flush()
+        await transfers.upi_to_bank(
+            db,
+            account_id=data.upi_account_id,
+            amount=data.amount,
+            on=data.entry_date,
+            note=f"UPI repayment · {person.name}",
+            balance_entry_id=entry.id,
+            created_by=created_by,
+        )
     await audit.write(
         db,
         created_by,
@@ -62,6 +73,7 @@ async def create_entry(
             "entry_date": str(data.entry_date),
             "method": data.method,
             "note": data.note,
+            "upi_account_id": str(data.upi_account_id) if data.upi_account_id else None,
         },
     )
     await db.commit()

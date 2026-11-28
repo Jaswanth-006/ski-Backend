@@ -86,6 +86,7 @@ async def _to_out(db: AsyncSession, t: Transfer) -> TransferOut:
         method=t.method,
         note=t.note,
         sale_id=t.sale_id,
+        balance_entry_id=t.balance_entry_id,
         created_at=t.created_at,
     )
 
@@ -136,6 +137,34 @@ async def create_transfer(
     await db.commit()
     await db.refresh(t)
     return await _to_out(db, t)
+
+
+async def upi_to_bank(
+    db: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    amount: Decimal,
+    on: dt.date,
+    note: str,
+    balance_entry_id: uuid.UUID,
+    created_by: uuid.UUID,
+) -> None:
+    """A UPI repayment counted into the cashier box, sent on to a bank account (no commit)."""
+    if await db.get(BankAccount, account_id) is None:
+        raise InvalidReference("bank account")
+    db.add(
+        Transfer(
+            business_date=on,
+            amount=amount,
+            source_kind="cashier_box",
+            dest_kind="bank_account",
+            dest_bank_account_id=account_id,
+            method="upi",
+            note=note,
+            balance_entry_id=balance_entry_id,
+            created_by=created_by,
+        )
+    )
 
 
 async def payments_for_entries(

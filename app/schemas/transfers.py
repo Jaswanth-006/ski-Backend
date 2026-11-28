@@ -81,4 +81,5 @@ class TransferOut(BaseModel):
     method: str
     note: str | None
     sale_id: uuid.UUID | None = None  # made by a sale — change it by editing that invoice
+    balance_entry_id: uuid.UUID | None = None  # made by a UPI repayment — edit that instead
     created_at: dt.datetime

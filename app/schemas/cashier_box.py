@@ -15,7 +15,7 @@ class CashierBoxOut(BaseModel):
     repaid: Decimal  # balance repayments received on this date (cash + UPI)
     expenses: Decimal  # expenses on this date
     deposited: Decimal  # deposits out of the box recorded on this date
-    upi_to_bank: Decimal = Decimal(0)  # sales' UPI sent on to a bank account on this date
+    upi_to_bank: Decimal = Decimal(0)  # sale / repayment UPI sent on to a bank on this date
     # Money put into the box on this date (debtor paid back, creditor lent, bank withdrawal).
     received: Decimal = Decimal(0)
     # opening + collected + repaid + received − expenses − deposited − upi_to_bank

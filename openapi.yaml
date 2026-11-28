@@ -3584,6 +3584,12 @@ components:
             - upi
           - type: 'null'
           title: Method
+        upi_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Upi Account Id
       type: object
       required:
       - customer_id
@@ -4088,6 +4094,12 @@ components:
             - upi
           - type: 'null'
           title: Method
+        upi_account_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Upi Account Id
       type: object
       required:
       - delivery_id
@@ -6355,6 +6367,12 @@ components:
             format: uuid
           - type: 'null'
           title: Sale Id
+        balance_entry_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Balance Entry Id
         created_at:
           type: string
           format: date-time

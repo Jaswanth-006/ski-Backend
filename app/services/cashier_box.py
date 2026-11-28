@@ -43,13 +43,15 @@ _REPAID = text(
 # Deposits out of the box that you recorded (sale-made ones are counted as UPI to bank).
 _DEPOSITS = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
-    "WHERE source_kind = 'cashier_box' AND sale_id IS NULL AND business_date <= :bound "
+    "WHERE source_kind = 'cashier_box' AND sale_id IS NULL AND balance_entry_id IS NULL "
+    "AND business_date <= :bound "
     "AND (CAST(:method AS text) IS NULL OR method = :method)"
 )
-# A sale's UPI sent on to a bank account: out of the box, but never physical notes.
+# UPI from sales and repayments sent on to a bank account: out of the box, never notes.
 _SALE_UPI_OUT = text(
     "SELECT COALESCE(SUM(amount), 0) FROM transfers "
-    "WHERE source_kind = 'cashier_box' AND sale_id IS NOT NULL AND business_date <= :bound"
+    "WHERE source_kind = 'cashier_box' "
+    "AND (sale_id IS NOT NULL OR balance_entry_id IS NOT NULL) AND business_date <= :bound"
 )
 # Money into the box: a debtor paying back, a creditor lending, cash drawn from a bank.
 _RECEIVED = text(
