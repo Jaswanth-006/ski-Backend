@@ -56,42 +56,69 @@ class InvalidReference(Exception):
 
 
 class InsufficientStock(Exception):
-    """An erv or return asks to take out more than is in stock."""
+    """An erv or return asks to take out more than is in stock (on its date or any later)."""
 
-    def __init__(self, what: str, available: int, requested: int) -> None:
-        super().__init__(f"not enough {what} in stock: {available} available, {requested} asked")
+    def __init__(self, what: str, available: int, requested: int, lowest: int = 0) -> None:
+        self.what = what
+        self.lowest = lowest  # the lowest a day would reach (negative)
+        super().__init__(
+            f"not enough {what} in stock on that date: {available} available, {requested} asked"
+        )
 
 
-_AVAILABLE = text(
+# The lowest stock any day reaches for one item (running total of the ledger by date).
+_LOWEST = text(
     """
-    SELECT COALESCE(SUM(delta), 0) FROM stock_ledger
-    WHERE (CAST(:cyl AS uuid) IS NULL OR cylinder_type_id = CAST(:cyl AS uuid))
-      AND (CAST(:acc AS uuid) IS NULL OR accessory_id = CAST(:acc AS uuid))
-      AND (CAST(:cond AS text) IS NULL OR condition = CAST(:cond AS text))
+    WITH daily AS (
+        SELECT business_date AS d, SUM(delta) AS s FROM stock_ledger
+        WHERE (CAST(:cyl AS uuid) IS NULL OR cylinder_type_id = CAST(:cyl AS uuid))
+          AND (CAST(:acc AS uuid) IS NULL OR accessory_id = CAST(:acc AS uuid))
+          AND (CAST(:cond AS text) IS NULL OR condition = CAST(:cond AS text))
+        GROUP BY business_date
+    )
+    SELECT COALESCE(MIN(c), 0) FROM (SELECT SUM(s) OVER (ORDER BY d) AS c FROM daily) r
     """
 )
+_LOCK = text("SELECT pg_advisory_xact_lock(hashtext(:k))")
 _NAME = text(
     "SELECT COALESCE((SELECT label FROM cylinder_types WHERE id = CAST(:cyl AS uuid)), "
     "(SELECT name FROM accessories WHERE id = CAST(:acc AS uuid)), 'item')"
 )
 
+StockKey = tuple[uuid.UUID | None, uuid.UUID | None, str | None]
 
-async def _ensure_available(
-    db: AsyncSession,
-    wanted: dict[tuple[uuid.UUID | None, uuid.UUID | None, str | None], int],
+
+def _params(key: StockKey) -> dict[str, str | None]:
+    cyl, acc, cond = key
+    return {"cyl": str(cyl) if cyl else None, "acc": str(acc) if acc else None, "cond": cond}
+
+
+async def lock_stock(db: AsyncSession, keys: set[StockKey]) -> dict[StockKey, int]:
+    """Lock each item's stock for this transaction (so two entries can't both take the last
+    empties) and return the lowest level any day reaches now, to compare after the change."""
+    lowest: dict[StockKey, int] = {}
+    for key in sorted(keys, key=str):  # one order everywhere: no deadlocks
+        await db.execute(_LOCK, {"k": f"stock:{key[0]}:{key[1]}:{key[2]}"})
+        lowest[key] = int(await db.scalar(_LOWEST, _params(key)) or 0)
+    return lowest
+
+
+async def ensure_no_day_negative(
+    db: AsyncSession, before: dict[StockKey, int], asked: dict[StockKey, int]
 ) -> None:
-    """Empties and accessories must be on hand (all dates) before they leave stock."""
-    for (cyl, acc, cond), qty in wanted.items():
-        params = {
-            "cyl": str(cyl) if cyl else None,
-            "acc": str(acc) if acc else None,
-            "cond": cond,
-        }
-        available = int(await db.scalar(_AVAILABLE, params) or 0)
-        if available < qty:
-            name = await db.scalar(_NAME, params) or "item"
-            what = f"{name} ({cond})" if cond else str(name)
-            raise InsufficientStock(what, available, qty)
+    """After writing an entry's rows: no day may drop below zero because of it.
+
+    Checks every date, not just the entry's own: an erv back-dated to before the empties came
+    in, or one that takes empties a later erv already sent, is refused.
+    """
+    await db.flush()
+    for key, low_before in before.items():
+        low = int(await db.scalar(_LOWEST, _params(key)) or 0)
+        if low < 0 and low < low_before:
+            name = await db.scalar(_NAME, _params(key)) or "item"
+            what = f"{name} ({key[2]})" if key[2] else str(name)
+            qty = asked.get(key, 0)
+            raise InsufficientStock(what, max(qty + low, 0), qty, low)
 
 
 async def record_ac4(
@@ -206,11 +233,11 @@ async def record_erv(
     """Empty cylinders returned to the plant: reduces empty stock."""
     bd = business_date or business_today()
     entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
-    wanted: dict[tuple[uuid.UUID | None, uuid.UUID | None, str | None], int] = {}
+    wanted: dict[StockKey, int] = {}
     for line in lines:
-        key = (line.cylinder_type_id, None, "empty")
+        key: StockKey = (line.cylinder_type_id, None, "empty")
         wanted[key] = wanted.get(key, 0) + line.qty
-    await _ensure_available(db, wanted)
+    before = await lock_stock(db, set(wanted))
     try:
         for line in lines:
             db.add(
@@ -224,6 +251,7 @@ async def record_erv(
                     created_by=created_by,
                 )
             )
+        await ensure_no_day_negative(db, before, wanted)
         await audit.write(
             db,
             created_by,
@@ -237,6 +265,9 @@ async def record_erv(
             },
         )
         await db.commit()
+    except InsufficientStock:
+        await db.rollback()
+        raise
     except IntegrityError as exc:
         await db.rollback()
         raise InvalidReference("one or more cylinder types are invalid") from exc
@@ -252,14 +283,14 @@ async def record_return(
     """Damaged or lost items written out of stock (cylinders full/empty, or accessories)."""
     bd = business_date or business_today()
     entry_id = uuid.uuid4()  # groups this entry's rows for later edit / delete
-    wanted: dict[tuple[uuid.UUID | None, uuid.UUID | None, str | None], int] = {}
+    wanted: dict[StockKey, int] = {}
     for line in lines:
-        if line.cylinder_type_id is not None and line.condition == "full":
-            continue  # full cylinders are checked against the live inventory below
-        key = (line.cylinder_type_id, line.accessory_id, line.condition)
+        key: StockKey = (line.cylinder_type_id, line.accessory_id, line.condition)
         wanted[key] = wanted.get(key, 0) + line.qty
-    await _ensure_available(db, wanted)
     try:
+        # Lock these items' stock; full cylinders are also checked against the live
+        # inventory (what sales draw from) below.
+        before = await lock_stock(db, set(wanted))
         for line in lines:
             if line.cylinder_type_id is not None and line.condition == "full":
                 # Full cylinders also live in the inventory table that sales draw from.
@@ -286,6 +317,7 @@ async def record_return(
                     created_by=created_by,
                 )
             )
+        await ensure_no_day_negative(db, before, wanted)
         await audit.write(
             db,
             created_by,

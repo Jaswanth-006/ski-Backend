@@ -351,8 +351,25 @@ class DeliveryOtherSales(Base):
     delivery_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
     )
+    # Applies to sales on or after this date (until a later row), like a price.
+    effective_date: Mapped[dt.date] = mapped_column(
+        Date, primary_key=True, server_default=text("DATE '2000-01-01'")
+    )
     amount_per_cylinder: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, server_default=text("0")
+    )
+
+
+class IdempotencyKey(Base):
+    """A saved entry remembered by the Idempotency-Key it came with (repeat-safe saves)."""
+
+    __tablename__ = "idempotency_keys"
+
+    key: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # type: ignore[type-arg]
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 

@@ -22,3 +22,13 @@ def test_root() -> None:
     res = client.get("/")
     assert res.status_code == 200
     assert res.json()["name"] == "ski-backend"
+
+
+def test_docs_and_metrics_private_in_production() -> None:
+    from app.core.config import Settings
+
+    prod = Settings(environment="production")
+    assert prod.docs_enabled is False
+    assert Settings(environment="production", api_docs=True).docs_enabled is True
+    assert Settings(environment="dev").docs_enabled is True
+    assert "env" not in client.get("/").json()

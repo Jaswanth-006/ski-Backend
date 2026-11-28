@@ -955,12 +955,24 @@ paths:
       summary: Stock Erv
       description: erv — empty cylinders returned to the plant.
       operationId: stock_erv_v1_stock_erv_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ErvRequest'
-        required: true
       responses:
         '201':
           description: Successful Response
@@ -974,8 +986,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - HTTPBearer: []
   /v1/stock/return:
     post:
       tags:
@@ -984,12 +994,24 @@ paths:
       description: return — damaged or lost cylinders (full/empty) or accessories
         taken out of stock.
       operationId: stock_return_v1_stock_return_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ReturnRequest'
-        required: true
       responses:
         '201':
           description: Successful Response
@@ -1003,8 +1025,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - HTTPBearer: []
   /v1/inventory:
     get:
       tags:
@@ -1280,20 +1300,44 @@ paths:
       tags:
       - delivery-other-sales
       summary: List Delivery Other Sales
+      description: Each boy's extra as it applied on ``on_date`` (default today).
       operationId: list_delivery_other_sales_v1_delivery_other_sales_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: on_date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: On Date
+      - name: include_inactive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Inactive
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/DeliveryOtherSalesOut'
-                type: array
                 title: Response List Delivery Other Sales V1 Delivery Other Sales
                   Get
-      security:
-      - HTTPBearer: []
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/delivery-other-sales/{delivery_id}:
     put:
       tags:
@@ -1386,6 +1430,16 @@ paths:
       operationId: create_balance_entry_v1_delivery_balances_post
       security:
       - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
         required: true
         content:
@@ -1464,6 +1518,16 @@ paths:
       operationId: create_customer_balance_entry_v1_customer_balances_post
       security:
       - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
         required: true
         content:
@@ -1921,6 +1985,16 @@ paths:
       operationId: create_expense_v1_expenses_post
       security:
       - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
         required: true
         content:
@@ -2509,6 +2583,16 @@ paths:
       operationId: create_transfer_v1_transfers_post
       security:
       - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
         required: true
         content:
@@ -4321,6 +4405,12 @@ components:
         amount_per_cylinder:
           type: string
           title: Amount Per Cylinder
+        effective_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective Date
       type: object
       required:
       - delivery_id
@@ -4335,6 +4425,12 @@ components:
             minimum: 0.0
           - type: string
           title: Amount Per Cylinder
+        effective_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective Date
       type: object
       required:
       - amount_per_cylinder

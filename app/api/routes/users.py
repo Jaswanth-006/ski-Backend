@@ -59,7 +59,10 @@ async def update_user(
     actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    user = await users_service.update_user(db, user_id, body)
+    try:
+        user = await users_service.update_user(db, user_id, body, actor_id=actor.id)
+    except users_service.OwnerLockout as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
     changes = body.model_dump(mode="json", exclude_unset=True, exclude={"password"})
