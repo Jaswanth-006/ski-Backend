@@ -142,3 +142,63 @@ class DepositLedgerOut(BaseModel):
     total_in: Decimal
     total_out: Decimal
     closing: Decimal | None  # bank accounts / vendors: opening + in − out
+
+
+# ---------------------------------------------------------------- purchases (ac4)
+
+
+class PurchaseReportRow(BaseModel):
+    """One ac4 entry: what came from the plant and what it cost (from the vendor balance)."""
+
+    entry_id: uuid.UUID
+    business_date: dt.date
+    invoice_no: str | None
+    items: str  # e.g. "14.2 kg Domestic × 50 · Regulator × 10"
+    cylinders: int  # full cylinders received
+    accessories: int  # accessories received
+    amount: Decimal | None  # the purchase amount; None when not entered yet
+    vendor_name: str | None  # whose balance paid for it
+    entered_by: str | None
+
+
+class PurchaseReportOut(BaseModel):
+    start: dt.date
+    end: dt.date
+    rows: list[PurchaseReportRow]
+    cylinders: int
+    accessories: int
+    amount: Decimal  # total of the entered amounts
+    missing_amount: int  # entries with no amount entered
+
+
+# ---------------------------------------------------------------- sales
+
+
+class SalesReportRow(BaseModel):
+    """One day's approved sales (delivery boys and direct customers)."""
+
+    business_date: dt.date
+    invoices: int
+    cylinders: int  # full cylinders sold
+    amount: Decimal  # sale value (incl. per-boy other sales)
+    cash: Decimal
+    upi: Decimal
+    online: Decimal  # paid straight to IOC
+    balance: Decimal  # left unpaid (added to what they owe)
+
+
+class SalesReportOut(BaseModel):
+    start: dt.date
+    end: dt.date
+    rows: list[SalesReportRow]
+    invoices: int
+    cylinders: int
+    amount: Decimal
+    cash: Decimal
+    upi: Decimal
+    online: Decimal
+    balance: Decimal
+    # Owner only (None for office): sales − ac4 purchases − expenses over the range.
+    purchases: Decimal | None = None
+    expenses: Decimal | None = None
+    profit: Decimal | None = None  # below zero = loss

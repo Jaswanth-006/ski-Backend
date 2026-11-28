@@ -28,7 +28,7 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from tests.conftest import TEST_ADMIN_PHONE, TEST_PASSWORD, SeededUsers
+from tests.conftest import TEST_ADMIN_PHONE, TEST_OFFICE_PHONE, TEST_PASSWORD, SeededUsers
 
 TYPE_CODE = "ZZ-rep"
 ITEM_NAME = "ZZ-rep-A4"
@@ -187,6 +187,29 @@ async def test_date_range_reports(client: tuple[AsyncClient, SeededUsers]) -> No
 
         exp = next(r for r in await _report(http, admin, "expenses") if r["item_name"] == ITEM_NAME)
         assert float(exp["total"]) == 200 and exp["count"] == 1
+
+        # Purchases: the ac4 entry, its amount not entered yet.
+        pur = await _report(http, admin, "purchases")
+        (prow,) = pur["rows"]
+        assert prow["cylinders"] == 500 and prow["items"] == "Rep × 500"
+        assert prow["amount"] is None and pur["missing_amount"] == 1
+        assert float(pur["amount"]) == 0
+        # Sales per day; the owner sees profit = sales − purchases − expenses.
+        sal = await _report(http, admin, "sales")
+        (srow,) = sal["rows"]
+        assert (srow["invoices"], srow["cylinders"], float(srow["amount"])) == (1, 300, 300000)
+        assert float(srow["upi"]) == 300000 and float(sal["amount"]) == 300000
+        assert (float(sal["purchases"]), float(sal["expenses"])) == (0, 200)
+        assert float(sal["profit"]) == 299800
+        office = {"Authorization": f"Bearer {await _token(http, TEST_OFFICE_PHONE)}"}
+        assert (await _report(http, office, "sales"))["profit"] is None
+        # The day sheet lists the agency's own expenses.
+        sheet = (await http.get(f"/v1/day-sheet/{DS}", headers=admin)).json()
+        assert [(a["item_name"], float(a["amount"])) for a in sheet["agency_expenses"]] == [
+            (ITEM_NAME, 200)
+        ]
+        assert float(sheet["agency_expense_total"]) == 200
+
         # One item's entries: the day, who entered it, how much.
         led = (
             await http.get(f"/v1/reports/expenses/{item_id}?start={DS}&end={DS}", headers=admin)

@@ -2997,6 +2997,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/purchases:
+    get:
+      tags:
+      - reports
+      summary: Purchase Report
+      description: 'Every ac4 purchase in the range: invoice, what came, what it cost.'
+      operationId: purchase_report_v1_reports_purchases_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseReportOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reports/sales:
+    get:
+      tags:
+      - reports
+      summary: Sales Report
+      description: Sales per day; the owner also gets profit / loss (sales − purchases
+        − expenses).
+      operationId: sales_report_v1_reports_sales_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Start
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesReportOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /v1/jobs/ping:
     post:
       tags:
@@ -3250,6 +3325,36 @@ components:
           title: Is Active
       type: object
       title: AccessoryUpdate
+    AgencyExpense:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        item_name:
+          type: string
+          title: Item Name
+        amount:
+          type: string
+          title: Amount
+        method:
+          type: string
+          title: Method
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - id
+      - item_name
+      - amount
+      - method
+      - note
+      title: AgencyExpense
+      description: An expense of the agency itself that day (not tied to a delivery
+        boy).
     AuditOut:
       properties:
         id:
@@ -3984,6 +4089,16 @@ components:
           title: Cashier Closing
         stock:
           $ref: '#/components/schemas/StockSummary'
+        agency_expenses:
+          items:
+            $ref: '#/components/schemas/AgencyExpense'
+          type: array
+          title: Agency Expenses
+          default: []
+        agency_expense_total:
+          type: string
+          title: Agency Expense Total
+          default: '0'
       type: object
       required:
       - business_date
@@ -5492,6 +5607,96 @@ components:
       - unit_price
       - effective_date
       title: PriceSet
+    PurchaseReportOut:
+      properties:
+        start:
+          type: string
+          format: date
+          title: Start
+        end:
+          type: string
+          format: date
+          title: End
+        rows:
+          items:
+            $ref: '#/components/schemas/PurchaseReportRow'
+          type: array
+          title: Rows
+        cylinders:
+          type: integer
+          title: Cylinders
+        accessories:
+          type: integer
+          title: Accessories
+        amount:
+          type: string
+          title: Amount
+        missing_amount:
+          type: integer
+          title: Missing Amount
+      type: object
+      required:
+      - start
+      - end
+      - rows
+      - cylinders
+      - accessories
+      - amount
+      - missing_amount
+      title: PurchaseReportOut
+    PurchaseReportRow:
+      properties:
+        entry_id:
+          type: string
+          format: uuid
+          title: Entry Id
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        invoice_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice No
+        items:
+          type: string
+          title: Items
+        cylinders:
+          type: integer
+          title: Cylinders
+        accessories:
+          type: integer
+          title: Accessories
+        amount:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Amount
+        vendor_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vendor Name
+        entered_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entered By
+      type: object
+      required:
+      - entry_id
+      - business_date
+      - invoice_no
+      - items
+      - cylinders
+      - accessories
+      - amount
+      - vendor_name
+      - entered_by
+      title: PurchaseReportRow
+      description: 'One ac4 entry: what came from the plant and what it cost (from
+        the vendor balance).'
     Reason:
       properties:
         reason:
@@ -5900,6 +6105,109 @@ components:
       - revenue_total
       - settled_total
       title: SaleOut
+    SalesReportOut:
+      properties:
+        start:
+          type: string
+          format: date
+          title: Start
+        end:
+          type: string
+          format: date
+          title: End
+        rows:
+          items:
+            $ref: '#/components/schemas/SalesReportRow'
+          type: array
+          title: Rows
+        invoices:
+          type: integer
+          title: Invoices
+        cylinders:
+          type: integer
+          title: Cylinders
+        amount:
+          type: string
+          title: Amount
+        cash:
+          type: string
+          title: Cash
+        upi:
+          type: string
+          title: Upi
+        online:
+          type: string
+          title: Online
+        balance:
+          type: string
+          title: Balance
+        purchases:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Purchases
+        expenses:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expenses
+        profit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Profit
+      type: object
+      required:
+      - start
+      - end
+      - rows
+      - invoices
+      - cylinders
+      - amount
+      - cash
+      - upi
+      - online
+      - balance
+      title: SalesReportOut
+    SalesReportRow:
+      properties:
+        business_date:
+          type: string
+          format: date
+          title: Business Date
+        invoices:
+          type: integer
+          title: Invoices
+        cylinders:
+          type: integer
+          title: Cylinders
+        amount:
+          type: string
+          title: Amount
+        cash:
+          type: string
+          title: Cash
+        upi:
+          type: string
+          title: Upi
+        online:
+          type: string
+          title: Online
+        balance:
+          type: string
+          title: Balance
+      type: object
+      required:
+      - business_date
+      - invoices
+      - cylinders
+      - amount
+      - cash
+      - upi
+      - online
+      - balance
+      title: SalesReportRow
+      description: One day's approved sales (delivery boys and direct customers).
     StockEntryEdit:
       properties:
         reason:

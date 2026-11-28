@@ -62,6 +62,16 @@ class DaySheetTotals(BaseModel):
     route_expense: Decimal = Decimal(0)
 
 
+class AgencyExpense(BaseModel):
+    """An expense of the agency itself that day (not tied to a delivery boy)."""
+
+    id: uuid.UUID
+    item_name: str
+    amount: Decimal
+    method: str  # 'cash' (out of the cashier box) | 'digital'
+    note: str | None
+
+
 class DaySheetOut(BaseModel):
     business_date: dt.date
     is_closed: bool
@@ -74,3 +84,6 @@ class DaySheetOut(BaseModel):
     cashier_opening: Decimal  # cashier box balance carried into this day
     cashier_closing: Decimal  # cashier box balance at end of this day
     stock: StockSummary  # warehouse opening/loaded/sold/returned/closing for the day
+    # Agency expenses (no delivery boy); with the boys' expenses they make expenses_total.
+    agency_expenses: list[AgencyExpense] = []
+    agency_expense_total: Decimal = Decimal(0)

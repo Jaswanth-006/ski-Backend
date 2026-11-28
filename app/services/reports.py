@@ -20,6 +20,10 @@ from app.schemas.reports import (
     ExpenseItemEntry,
     ExpenseItemLedgerOut,
     ExpenseReportRow,
+    PurchaseReportOut,
+    PurchaseReportRow,
+    SalesReportOut,
+    SalesReportRow,
     StockReportRow,
 )
 from app.services.sales import SALE_CHARGE_NOTE
@@ -457,3 +461,139 @@ async def deposit_ledger(
         total_out=total_out,
         closing=None if opening is None else opening + total_in - total_out,
     )
+
+
+# ---------------------------------------------------------------- purchases (ac4)
+
+_PURCHASES = text(
+    """
+    SELECT e.entry_id, e.business_date, e.invoice_no, e.cylinders, e.accessories, e.items,
+           e.entered_by, p.amount, p.vendor_name
+    FROM (
+        SELECT sl.entry_id, MIN(sl.business_date) AS business_date,
+               MIN(sl.invoice_no) AS invoice_no,
+               COALESCE(SUM(sl.delta) FILTER (WHERE sl.cylinder_type_id IS NOT NULL), 0)
+                 AS cylinders,
+               COALESCE(SUM(sl.delta) FILTER (WHERE sl.accessory_id IS NOT NULL), 0)
+                 AS accessories,
+               string_agg(COALESCE(ct.label, a.name, 'item') || ' × ' || sl.delta, ' · '
+                          ORDER BY sl.id) AS items,
+               MIN(u.name) AS entered_by, MIN(sl.created_at) AS created_at
+        FROM stock_ledger sl
+        LEFT JOIN cylinder_types ct ON ct.id = sl.cylinder_type_id
+        LEFT JOIN accessories a ON a.id = sl.accessory_id
+        LEFT JOIN users u ON u.id = sl.created_by
+        WHERE sl.reason = 'ac4' AND sl.entry_id IS NOT NULL
+          AND sl.business_date BETWEEN :start AND :end
+        GROUP BY sl.entry_id
+    ) e
+    LEFT JOIN LATERAL (
+        SELECT SUM(t.amount) AS amount, MIN(v.name) AS vendor_name
+        FROM transfers t LEFT JOIN vendors v ON v.id = t.source_vendor_id
+        WHERE t.stock_entry_id = e.entry_id AND t.dest_kind = 'purchase'
+    ) p ON TRUE
+    ORDER BY e.business_date, e.created_at
+    """
+)
+
+
+async def purchase_report(db: AsyncSession, start: dt.date, end: dt.date) -> PurchaseReportOut:
+    """Every ac4 entry in the range with its amount (taken from the vendor's balance)."""
+    rows = [
+        PurchaseReportRow(
+            entry_id=r["entry_id"],
+            business_date=r["business_date"],
+            invoice_no=r["invoice_no"],
+            items=r["items"] or "—",
+            cylinders=int(r["cylinders"]),
+            accessories=int(r["accessories"]),
+            amount=None if r["amount"] is None else Decimal(r["amount"]),
+            vendor_name=r["vendor_name"],
+            entered_by=r["entered_by"],
+        )
+        for r in (await db.execute(_PURCHASES, {"start": start, "end": end})).mappings().all()
+    ]
+    return PurchaseReportOut(
+        start=start,
+        end=end,
+        rows=rows,
+        cylinders=sum(r.cylinders for r in rows),
+        accessories=sum(r.accessories for r in rows),
+        amount=sum((r.amount for r in rows if r.amount is not None), Decimal(0)),
+        missing_amount=sum(1 for r in rows if r.amount is None),
+    )
+
+
+# ---------------------------------------------------------------- sales
+
+_SALES_BY_DAY = text(
+    """
+    SELECT s.business_date,
+           COUNT(*) AS invoices,
+           COALESCE(SUM(l.qty), 0) AS cylinders,
+           COALESCE(SUM(l.amount), 0) AS amount,
+           COALESCE(SUM(c.cash), 0) AS cash,
+           SUM(s.upi_total) AS upi,
+           SUM(s.online_total) AS online,
+           SUM(s.balance_total) AS balance
+    FROM sales s
+    LEFT JOIN LATERAL (
+        SELECT SUM(qty) AS qty, SUM((unit_price + other_sales_per_unit) * qty) AS amount
+        FROM sale_lines WHERE sale_id = s.id
+    ) l ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT SUM(note_value * note_count) AS cash FROM cash_denominations WHERE sale_id = s.id
+    ) c ON TRUE
+    WHERE s.status = 'approved' AND s.business_date BETWEEN :start AND :end
+    GROUP BY s.business_date
+    ORDER BY s.business_date
+    """
+)
+_PURCHASES_TOTAL = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM transfers "
+    "WHERE dest_kind = 'purchase' AND business_date BETWEEN :start AND :end"
+)
+_EXPENSES_TOTAL = text(
+    "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date BETWEEN :start AND :end"
+)
+
+
+async def sales_report(
+    db: AsyncSession, start: dt.date, end: dt.date, with_profit: bool
+) -> SalesReportOut:
+    """Approved sales per day. For the owner, profit = sales − ac4 purchases − expenses."""
+    params = {"start": start, "end": end}
+    rows = [
+        SalesReportRow(
+            business_date=r["business_date"],
+            invoices=int(r["invoices"]),
+            cylinders=int(r["cylinders"]),
+            amount=Decimal(r["amount"]),
+            cash=Decimal(r["cash"]),
+            upi=Decimal(r["upi"]),
+            online=Decimal(r["online"]),
+            balance=Decimal(r["balance"]),
+        )
+        for r in (await db.execute(_SALES_BY_DAY, params)).mappings().all()
+    ]
+
+    def total(field: str) -> Decimal:
+        return sum((getattr(r, field) for r in rows), Decimal(0))
+
+    out = SalesReportOut(
+        start=start,
+        end=end,
+        rows=rows,
+        invoices=sum(r.invoices for r in rows),
+        cylinders=sum(r.cylinders for r in rows),
+        amount=total("amount"),
+        cash=total("cash"),
+        upi=total("upi"),
+        online=total("online"),
+        balance=total("balance"),
+    )
+    if with_profit:
+        out.purchases = Decimal(await db.scalar(_PURCHASES_TOTAL, params) or 0)
+        out.expenses = Decimal(await db.scalar(_EXPENSES_TOTAL, params) or 0)
+        out.profit = out.amount - out.purchases - out.expenses
+    return out
