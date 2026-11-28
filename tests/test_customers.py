@@ -186,10 +186,14 @@ async def test_invoice_number_and_customer_balance(
         assert res.json()["invoice_no"] == invoice  # trimmed
         assert float(res.json()["balance_total"]) == 400
 
-        # The same invoice number can't be used again.
+        # The same invoice number may be used again (here cancelled straight after).
         dup = await http.post("/v1/sales", headers=key(), json=sale(invoice))
-        assert dup.status_code == 409
-        assert invoice in dup.json()["detail"]
+        assert dup.status_code == 201, dup.text
+        assert dup.json()["invoice_no"] == invoice
+        r = await http.post(
+            f"/v1/sales/{dup.json()['id']}/cancel", headers=admin, json={"reason": "test repeat"}
+        )
+        assert r.status_code == 200, r.text
 
         # The unpaid part is charged to the customer's balance.
         summary = (await http.get("/v1/customer-balances/summary", headers=admin)).json()
