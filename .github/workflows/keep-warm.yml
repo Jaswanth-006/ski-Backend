@@ -1,0 +1,16 @@
+# Keeps the free Render instance from sleeping (it sleeps after 15 min idle and once got
+# stuck waking). Pings the liveness probe every 10 minutes; a failed ping is only logged.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping the API
+        run: curl -fsS --max-time 90 https://ski-api-iaep.onrender.com/livez || echo "ping failed"
