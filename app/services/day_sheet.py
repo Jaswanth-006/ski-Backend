@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import DaySheetStatus, User
 from app.schemas.day_sheet import (
+    AgencyExpense,
     DaySheetOut,
     DaySheetRow,
     DaySheetTotals,
@@ -55,6 +56,13 @@ _AGG_SQL = text(
 )
 
 _EXP_SQL = text("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_date = :on_date")
+
+_AGENCY_EXP_SQL = text(
+    "SELECT e.id, ei.name AS item_name, e.amount, e.method, e.note "
+    "FROM expenses e JOIN expense_items ei ON ei.id = e.item_id "
+    "WHERE e.business_date = :on_date AND e.delivery_id IS NULL "
+    "ORDER BY e.created_at"
+)
 
 _EXP_BY_DRIVER_SQL = text(
     "SELECT delivery_id, COALESCE(SUM(amount), 0) AS expense, "
@@ -244,6 +252,10 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         returned=sum(r.returned for r in rows),
         closing=closing_stock,
     )
+    agency = [
+        AgencyExpense(**r)
+        for r in (await db.execute(_AGENCY_EXP_SQL, {"on_date": on_date})).mappings().all()
+    ]
     return DaySheetOut(
         business_date=on_date,
         is_closed=bool(status and status.is_closed),
@@ -256,6 +268,8 @@ async def get_day_sheet(db: AsyncSession, on_date: dt.date) -> DaySheetOut:
         cashier_opening=cashier_opening,
         cashier_closing=cashier_closing,
         stock=stock,
+        agency_expenses=agency,
+        agency_expense_total=sum((a.amount for a in agency), Decimal(0)),
     )
 
 

@@ -18,6 +18,8 @@ from app.schemas.reports import (
     ExpenseItemLedgerOut,
     ExpenseReportRow,
     PartyKind,
+    PurchaseReportOut,
+    SalesReportOut,
     StockReportRow,
 )
 from app.services import reports as reports_service
@@ -117,3 +119,26 @@ async def deposit_ledger(
         return await reports_service.deposit_ledger(db, kind, ref_id, start, end)
     except reports_service.PlaceNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
+
+
+@router.get("/reports/purchases", response_model=PurchaseReportOut)
+async def purchase_report(
+    start: dt.date,
+    end: dt.date,
+    _: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_replica_db),
+) -> PurchaseReportOut:
+    """Every ac4 purchase in the range: invoice, what came, what it cost."""
+    return await reports_service.purchase_report(db, start, end)
+
+
+@router.get("/reports/sales", response_model=SalesReportOut)
+async def sales_report(
+    start: dt.date,
+    end: dt.date,
+    current_user: User = Depends(require_roles(*_OFFICE)),
+    db: AsyncSession = Depends(get_replica_db),
+) -> SalesReportOut:
+    """Sales per day; the owner also gets profit / loss (sales − purchases − expenses)."""
+    with_profit = current_user.role == "super_admin"
+    return await reports_service.sales_report(db, start, end, with_profit)
