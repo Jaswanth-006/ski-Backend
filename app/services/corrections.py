@@ -172,16 +172,6 @@ def _key(line: Any) -> tuple[Any, Any, Any]:
     return (line.cylinder_type_id, line.accessory_id, line.condition)
 
 
-_ON_HAND = text(
-    """
-    SELECT COALESCE(SUM(delta), 0) FROM stock_ledger
-    WHERE (CAST(:cyl AS uuid) IS NULL OR cylinder_type_id = CAST(:cyl AS uuid))
-      AND (CAST(:acc AS uuid) IS NULL OR accessory_id = CAST(:acc AS uuid))
-      AND (CAST(:cond AS text) IS NULL OR condition = CAST(:cond AS text))
-    """
-)
-
-
 async def _replace_stock_entry(
     db: AsyncSession,
     entry: StockEntryOut,
@@ -198,6 +188,9 @@ async def _replace_stock_entry(
     def what(key: tuple[Any, Any, Any]) -> str:
         name = labels.get(key, "item")
         return f"{name} ({key[2]})" if key[2] else name
+
+    # Lock these items' stock and note the lowest day now, to compare after the change.
+    before = await stock.lock_stock(db, touched)
 
     # Live full-cylinder inventory (what sales draw from): apply the net change once, and
     # refuse it if it would go below zero (e.g. shrinking an ac4 whose cylinders were sold).
@@ -239,15 +232,12 @@ async def _replace_stock_entry(
                 created_by=actor.id,
             )
         )
-    await db.flush()
-
-    # The ledger (empties, accessories, full) must not end up below zero either.
-    for key in touched:
-        cyl, acc, cond = key
-        params = {"cyl": str(cyl) if cyl else None, "acc": str(acc) if acc else None, "cond": cond}
-        on_hand = int(await db.scalar(_ON_HAND, params) or 0)
-        if on_hand < 0:
-            raise StockWouldGoNegative(what(key), on_hand)
+    # The ledger (empties, accessories, full) must not drop below zero on any day either —
+    # e.g. moving an erv to before the empties came in.
+    try:
+        await stock.ensure_no_day_negative(db, before, {})
+    except stock.InsufficientStock as exc:
+        raise StockWouldGoNegative(exc.what, exc.lowest) from exc
 
 
 async def edit_stock_entry(

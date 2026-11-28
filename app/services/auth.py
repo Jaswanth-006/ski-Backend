@@ -3,7 +3,9 @@ family (00-MAIN-PRD §8.1).
 
 Login issues an access JWT + an opaque refresh token (new family). Refresh rotates:
 the presented token is revoked and a fresh one issued in the same family. Presenting an
-already-revoked token is treated as theft — the **entire family** is revoked.
+already-revoked token is treated as theft — the **entire family** is revoked — unless the
+family was rotated only seconds ago: that is the same browser renewing twice at once (two
+tabs, or two requests racing), so that request is refused without logging everyone out.
 """
 
 from __future__ import annotations
@@ -16,6 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
 from app.db.models import RefreshToken, User
+
+# A revoked token presented this soon after its family last rotated is a race, not theft.
+REUSE_GRACE = dt.timedelta(seconds=30)
 
 
 class AuthError(Exception):
@@ -62,6 +67,23 @@ async def rotate_refresh_token(db: AsyncSession, raw_token: str) -> tuple[str, s
 
     # Reuse of an already-revoked token → assume compromise, revoke the whole family.
     if row.revoked:
+        newest = await db.scalar(
+            select(RefreshToken.created_at)
+            .where(RefreshToken.family_id == row.family_id)
+            .order_by(RefreshToken.created_at.desc())
+            .limit(1)
+        )
+        live = await db.scalar(
+            select(RefreshToken.id).where(
+                RefreshToken.family_id == row.family_id, RefreshToken.revoked.is_(False)
+            )
+        )
+        if (
+            live is not None
+            and newest is not None
+            and dt.datetime.now(tz=dt.UTC) - newest < REUSE_GRACE
+        ):
+            raise AuthError("refresh token already renewed")
         await _revoke_family(db, row.family_id)
         await db.commit()
         raise AuthError("refresh token reuse detected")
@@ -84,6 +106,15 @@ async def _revoke_family(db: AsyncSession, family_id: uuid.UUID) -> None:
     await db.execute(
         update(RefreshToken)
         .where(RefreshToken.family_id == family_id, RefreshToken.revoked.is_(False))
+        .values(revoked=True)
+    )
+
+
+async def revoke_user_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Sign a user out everywhere (no commit): every refresh token they hold is revoked."""
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked.is_(False))
         .values(revoked=True)
     )
 

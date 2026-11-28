@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "customers",  # added in Phase I
     "delivery_balances",  # added in Phase K
     "customer_balances",  # added with sale invoice numbers
+    "idempotency_keys",  # repeat-safe saves
 }
 
 

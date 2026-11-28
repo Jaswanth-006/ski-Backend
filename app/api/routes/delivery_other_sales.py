@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -18,10 +19,13 @@ router = APIRouter(tags=["delivery-other-sales"])
 
 @router.get("/delivery-other-sales", response_model=list[DeliveryOtherSalesOut])
 async def list_delivery_other_sales(
+    on_date: dt.date | None = None,
+    include_inactive: bool = False,
     _: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[DeliveryOtherSalesOut]:
-    return await service.list_all(db)
+    """Each boy's extra as it applied on ``on_date`` (default today)."""
+    return await service.list_all(db, on_date=on_date, include_inactive=include_inactive)
 
 
 @router.put("/delivery-other-sales/{delivery_id}", response_model=DeliveryOtherSalesOut)
@@ -31,7 +35,9 @@ async def set_delivery_other_sales(
     actor: User = Depends(require_roles("super_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> DeliveryOtherSalesOut:
-    result = await service.set_amount(db, delivery_id, body.amount_per_cylinder)
+    result = await service.set_amount(
+        db, delivery_id, body.amount_per_cylinder, body.effective_date
+    )
     await audit.record(
         db,
         actor.id,

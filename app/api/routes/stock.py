@@ -15,7 +15,7 @@ from app.db.models import User
 from app.schemas.inventory import InventoryAdjust, InventoryOut, StockIntake
 from app.schemas.stock import Ac4Request, ErvRequest, ReturnRequest, StockOverview
 from app.schemas.stock_loads import StockLoadOut, StockLoadUpsert
-from app.services import day_lock
+from app.services import day_lock, idempotency
 from app.services import inventory as inventory_service
 from app.services import stock as stock_service
 from app.services import stock_loads as stock_loads_service
@@ -61,45 +61,63 @@ async def stock_ac4(
 @router.post("/stock/erv", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
 async def stock_erv(
     body: ErvRequest,
+    idempotency_key: uuid.UUID | None = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """erv — empty cylinders returned to the plant."""
-    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+
+    async def save() -> StockOverview:
+        await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+        try:
+            await stock_service.record_erv(
+                db,
+                lines=body.lines,
+                created_by=current_user.id,
+                business_date=body.business_date,
+            )
+        except stock_service.InsufficientStock as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except stock_service.InvalidReference as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        return await stock_service.overview(db, body.business_date or business_today())
+
     try:
-        await stock_service.record_erv(
-            db,
-            lines=body.lines,
-            created_by=current_user.id,
-            business_date=body.business_date,
-        )
-    except stock_service.InsufficientStock as exc:
+        result: StockOverview = await idempotency.run_once(db, idempotency_key, "erv", save)
+    except idempotency.KeyConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except stock_service.InvalidReference as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or business_today())
+    return result
 
 
 @router.post("/stock/return", response_model=StockOverview, status_code=status.HTTP_201_CREATED)
 async def stock_return(
     body: ReturnRequest,
+    idempotency_key: uuid.UUID | None = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(require_roles("super_admin", "office_admin")),
     db: AsyncSession = Depends(get_db),
 ) -> StockOverview:
     """return — damaged or lost cylinders (full/empty) or accessories taken out of stock."""
-    await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+
+    async def save() -> StockOverview:
+        await day_lock.ensure_open(db, body.business_date or business_today(), current_user)
+        try:
+            await stock_service.record_return(
+                db,
+                lines=body.lines,
+                created_by=current_user.id,
+                business_date=body.business_date,
+            )
+        except stock_service.InsufficientStock as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except stock_service.InvalidReference as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        return await stock_service.overview(db, body.business_date or business_today())
+
     try:
-        await stock_service.record_return(
-            db,
-            lines=body.lines,
-            created_by=current_user.id,
-            business_date=body.business_date,
-        )
-    except stock_service.InsufficientStock as exc:
+        result: StockOverview = await idempotency.run_once(db, idempotency_key, "return", save)
+    except idempotency.KeyConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except stock_service.InvalidReference as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return await stock_service.overview(db, body.business_date or business_today())
+    return result
 
 
 @router.get("/inventory", response_model=list[InventoryOut])

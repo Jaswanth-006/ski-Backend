@@ -6,6 +6,8 @@ and the /v1 routers. Business routers arrive in later phases.
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -46,10 +48,15 @@ def create_app() -> FastAPI:
     configure_logging(settings.log_level)
     init_sentry(settings)
 
+    docs = settings.docs_enabled
     app = FastAPI(
         title="Ski — API",
         version=settings.version,
         description="System of record for an LPG distributorship. See 01-BACKEND-PRD.",
+        # Not public in production: the spec is a map of every endpoint.
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
     )
 
     @app.exception_handler(day_lock.DayLocked)
@@ -94,8 +101,16 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/metrics", tags=["health"], include_in_schema=False)
-    async def metrics() -> Response:
-        """Prometheus metrics (request rate/latency/errors) for scraping."""
+    async def metrics(request: Request) -> Response:
+        """Prometheus metrics (request rate/latency/errors) for scraping.
+
+        In production only with ``Authorization: Bearer <METRICS_TOKEN>`` (404 otherwise).
+        """
+        if settings.is_production:
+            token = settings.metrics_token
+            given = request.headers.get("authorization", "")
+            if not token or not hmac.compare_digest(given, f"Bearer {token}"):
+                raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Not Found")
         return Response(metrics_mod.render_latest(), media_type=metrics_mod.CONTENT_TYPE_LATEST)
 
     @app.get("/readyz", tags=["health"])
@@ -112,7 +127,7 @@ def create_app() -> FastAPI:
 
     @app.get("/", tags=["meta"])
     async def root() -> dict[str, str]:
-        return {"name": settings.app_name, "version": settings.version, "env": settings.environment}
+        return {"name": settings.app_name, "status": "ok"}
 
     return app
 

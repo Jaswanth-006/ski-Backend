@@ -65,6 +65,20 @@ class Settings(BaseSettings):
     # different origin in production).
     cors_origins: str = "http://localhost:5173"
 
+    # API docs (/docs, /redoc, /openapi.json) are served everywhere except production,
+    # where they would publish a map of every endpoint. Set API_DOCS=true to turn them on.
+    api_docs: bool | None = None
+    # /metrics in production needs `Authorization: Bearer <METRICS_TOKEN>`; unset = off there.
+    metrics_token: str | None = None
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() in ("production", "prod")
+
+    @property
+    def docs_enabled(self) -> bool:
+        return self.api_docs if self.api_docs is not None else not self.is_production
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

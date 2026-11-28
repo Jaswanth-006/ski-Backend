@@ -340,7 +340,7 @@ async def _post(
 
     # The boy's per-cylinder extra rides on top of the fixed price (delivery sales only).
     boy_extra = (
-        await delivery_other_sales.amount_for(db, data.delivery_id)
+        await delivery_other_sales.amount_for(db, data.delivery_id, data.business_date)
         if data.delivery_id is not None
         else Decimal(0)
     )
